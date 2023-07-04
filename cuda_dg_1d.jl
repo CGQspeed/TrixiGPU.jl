@@ -95,6 +95,24 @@ function flux_kernel!(flux_arr, u, equations::AbstractEquations{1}, flux::Functi
     return nothing
 end
 
+# new
+function flux_kernel_new!(flux_arr, u, equations::AbstractEquations{1}, flux::Function)
+    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+
+    if (j <= size(u, 2) && k <= size(u, 3))
+        u_node = get_nodes_vars(u, equations, j, k)
+        f = flux(u_node, 1, equations)
+        @inbounds begin
+            for ii in axes(u, 1)
+                flux_arr[ii, j, k] = f[ii]
+            end
+        end
+    end
+
+    return nothing
+end
+
 # CUDA kernel for calculating weak form
 function weak_form_kernel!(du, derivative_dhat, flux_arr)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
@@ -164,6 +182,19 @@ function surface_flux_kernel!(surface_flux_arr, interfaces_u, equations::Abstrac
     if (i == 1 && j <= size(interfaces_u, 2) && k <= size(interfaces_u, 3))
         u_ll, u_rr = get_surface_node_vars(interfaces_u, equations, k)
         @inbounds surface_flux_arr[i, j, k] = surface_flux(u_ll, u_rr, 1, equations)[j]
+    end
+
+    return nothing
+end
+
+# new
+function surface_flux_kernel_new!(surface_flux_arr, interfaces_u, equations::AbstractEquations{1}, surface_flux::FluxLaxFriedrichs) # ::Any?
+    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+
+    if (j <= size(interfaces_u, 2) && k <= size(interfaces_u, 3))
+        u_ll, u_rr = get_surface_node_vars(interfaces_u, equations, k)
+        @inbounds surface_flux_arr[1, j, k] = surface_flux(u_ll, u_rr, 1, equations)[j]
     end
 
     return nothing

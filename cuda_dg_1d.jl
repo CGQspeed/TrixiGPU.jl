@@ -295,7 +295,7 @@ end
 #################################################################################
 du, u = copy_to_gpu!(du, u)
 
-cuda_volume_integral!(
+#= cuda_volume_integral!(
     du, u, mesh,
     have_nonconservative_terms(equations), equations,
     solver.volume_integral, solver)
@@ -313,7 +313,37 @@ cuda_jacobian!(du, mesh, cache)
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
 
-du, u = copy_to_cpu!(du, u)
+du, u = copy_to_cpu!(du, u) =#
+
+derivative_dhat = CuArray{Float32}(solver.basis.derivative_dhat)
+flux_arr = similar(u)
+
+@benchmark begin
+    flux_kernel = @cuda launch = false flux_kernel!(flux_arr, u, equations, flux)
+    flux_kernel(flux_arr, u, equations, flux; configurator_3d(flux_kernel, flux_arr)...)
+end
+
+size_arr = CuArray{Float32}(undef, (size(flux_arr, 2), size(flux_arr, 3)))
+@benchmark begin
+    flux_kernel_new = @cuda launch = false flux_kernel_new!(flux_arr, u, equations, flux)
+    flux_kernel_new(flux_arr, u, equations, flux; configurator_2d(flux_kernel_new, size_arr)...)
+end
+
+surface_flux = solver.surface_integral.surface_flux
+interfaces_u = CuArray{Float32}(cache.interfaces.u)
+surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
+surface_flux_arr = CuArray{Float32}(undef, (1, size(interfaces_u, 2), size(interfaces_u, 3)))
+
+@benchmark begin
+    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(surface_flux_arr, interfaces_u, equations, surface_flux)
+    surface_flux_kernel(surface_flux_arr, interfaces_u, equations, surface_flux; configurator_3d(surface_flux_kernel, surface_flux_arr)...)
+end
+
+size_arr = CuArray{Float32}(undef, (size(interfaces_u, 2), size(interfaces_u, 3)))
+@benchmark begin
+    surface_flux_kernel_new = @cuda launch = false surface_flux_kernel_new!(surface_flux_arr, interfaces_u, equations, surface_flux)
+    surface_flux_kernel_new(surface_flux_arr, interfaces_u, equations, surface_flux; configurator_2d(surface_flux_kernel_new, size_arr)...)
+end
 
 # For tests
 #################################################################################

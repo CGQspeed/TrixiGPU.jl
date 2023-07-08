@@ -203,7 +203,7 @@ function cuda_prolong2interfaces!(u, mesh::TreeMesh{3}, cache)
 end
 
 # CUDA kernel for calculating surface fluxes 
-function surface_flux_kernel1!(surface_flux_arr, interfaces_u, orientations,
+function surface_flux_kernel!(surface_flux_arr, interfaces_u, orientations,
     equations::AbstractEquations{3}, surface_flux::Any)
     j2 = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j3 = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -266,13 +266,13 @@ surface_flux_arr = CuArray{Float32}(undef, 1, size(interfaces_u)[2:end]...)
 
 size_arr = CuArray{Float32}(undef, size(interfaces_u, 3), size(interfaces_u, 4), size(interfaces_u, 5))
 
-surface_flux_kernel1 = @cuda launch = false surface_flux_kernel1!(surface_flux_arr, interfaces_u, orientations, equations, surface_flux)
-surface_flux_kernel1(surface_flux_arr, interfaces_u, orientations, equations, surface_flux; configurator_3d(surface_flux_kernel1, size_arr)...)
+surface_flux_kernel = @cuda launch = false surface_flux_kernel!(surface_flux_arr, interfaces_u, orientations, equations, surface_flux)
+surface_flux_kernel(surface_flux_arr, interfaces_u, orientations, equations, surface_flux; configurator_3d(surface_flux_kernel, size_arr)...)
 
-size_arr = CuArray{Float32}(undef, size(surface_flux_arr, 3)^2, size(interfaces_u, 5))
+#= size_arr = CuArray{Float32}(undef, size(surface_flux_arr, 3)^2, size(interfaces_u, 5))
 
 surface_flux_kernel2 = @cuda launch = false surface_flux_kernel2!(surface_flux_arr, interfaces_u, orientations, equations, surface_flux)
-surface_flux_kernel2(surface_flux_arr, interfaces_u, orientations, equations, surface_flux; configurator_2d(surface_flux_kernel2, size_arr)...)
+surface_flux_kernel2(surface_flux_arr, interfaces_u, orientations, equations, surface_flux; configurator_2d(surface_flux_kernel2, size_arr)...) =#
 
 
 # For tests

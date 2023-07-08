@@ -205,7 +205,6 @@ end
 # CUDA kernel for calculating surface fluxes 
 function surface_flux_kernel1!(surface_flux_arr, interfaces_u, orientations,
     equations::AbstractEquations{3}, surface_flux::Any)
-
     j2 = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j3 = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
@@ -231,10 +230,8 @@ function surface_flux_kernel2!(surface_flux_arr, interfaces_u, orientations,
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
     if (j <= size(surface_flux_arr, 3)^2 && k <= size(surface_flux_arr, 5))
-
         j2 = div(j - 1, size(surface_flux_arr, 3)) + 1
         j3 = rem(j - 1, size(surface_flux_arr, 3)) + 1
-
 
         u_ll, u_rr = get_surface_node_vars(interfaces_u, equations, j2, j3, k)
         orientation = orientations[k]

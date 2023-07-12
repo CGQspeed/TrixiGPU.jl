@@ -9,7 +9,7 @@ include("test/compressible_euler_2d.jl")
 #################################################################################
 
 # CUDA kernel configurator for 1D array computing
-function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float32,1})
+function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float64,1})
     config = launch_configuration(kernel.fun)
 
     threads = min(length(array), config.threads)
@@ -19,7 +19,7 @@ function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float32,1})
 end
 
 # CUDA kernel configurator for 2D array computing
-function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float32,2})
+function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float64,2})
     config = launch_configuration(kernel.fun)
 
     threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
@@ -29,7 +29,7 @@ function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float32,2})
 end
 
 # CUDA kernel configurator for 3D array computing
-function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{Float32,3})
+function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{Float64,3})
     config = launch_configuration(kernel.fun)
 
     threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
@@ -65,10 +65,10 @@ end
 # CUDA kernels 
 #################################################################################
 
-# Copy data to GPU (run as Float32)
+# Copy data to GPU (run as Float64)
 function copy_to_gpu!(du, u)
-    du = CUDA.zeros(size(du))
-    u = CuArray{Float32}(u)
+    du = CUDA.zeros(Float64, size(du))
+    u = CuArray{Float64}(u)
 
     return (du, u)
 end
@@ -131,16 +131,16 @@ function cuda_volume_integral!(du, u, mesh::TreeMesh{2},
     nonconservative_terms, equations,
     volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
 
-    derivative_dhat = CuArray{Float32}(dg.basis.derivative_dhat)
+    derivative_dhat = CuArray{Float64}(dg.basis.derivative_dhat)
     flux_arr1 = similar(u)
     flux_arr2 = similar(u)
 
-    size_arr = CuArray{Float32}(undef, size(u, 2)^2, size(u, 4))
+    size_arr = CuArray{Float64}(undef, size(u, 2)^2, size(u, 4))
 
     flux_kernel = @cuda launch = false flux_kernel!(flux_arr1, flux_arr2, u, equations, flux)
     flux_kernel(flux_arr1, flux_arr2, u, equations; configurator_2d(flux_kernel, size_arr)...)
 
-    size_arr = CuArray{Float32}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
+    size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
 
     weak_form_kernel = @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
     weak_form_kernel(du, derivative_dhat, flux_arr1, flux_arr2; configurator_3d(weak_form_kernel, size_arr)...)
@@ -179,11 +179,11 @@ end
 # Prolong solution to interfaces
 function cuda_prolong2interfaces!(u, mesh::TreeMesh{2}, cache)
 
-    interfaces_u = CuArray{Float32}(cache.interfaces.u)
-    neighbor_ids = CuArray{Int32}(cache.interfaces.neighbor_ids)
-    orientations = CuArray{Int32}(cache.interfaces.orientations)
+    interfaces_u = CuArray{Float64}(cache.interfaces.u)
+    neighbor_ids = CuArray{Int64}(cache.interfaces.neighbor_ids)
+    orientations = CuArray{Int64}(cache.interfaces.orientations)
 
-    size_arr = CuArray{Float32}(undef, size(interfaces_u, 2) * size(interfaces_u, 3), size(interfaces_u, 4))
+    size_arr = CuArray{Float64}(undef, size(interfaces_u, 2) * size(interfaces_u, 3), size(interfaces_u, 4))
 
     prolong_interfaces_kernel = @cuda launch = false prolong_interfaces_kernel!(interfaces_u, u, neighbor_ids, orientations)
     prolong_interfaces_kernel(interfaces_u, u, neighbor_ids, orientations; configurator_2d(prolong_interfaces_kernel, size_arr)...)
@@ -241,18 +241,18 @@ function cuda_interface_flux!(mesh::TreeMesh{2}, nonconservative_terms::False,
     equations, dg::DGSEM, cache)
 
     surface_flux = dg.surface_integral.surface_flux
-    interfaces_u = CuArray{Float32}(cache.interfaces.u)
-    neighbor_ids = CuArray{Int32}(cache.interfaces.neighbor_ids)
-    orientations = CuArray{Int32}(cache.interfaces.orientations)
-    surface_flux_arr = CuArray{Float32}(undef, 1, size(interfaces_u)[2:end]...)
-    surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
+    interfaces_u = CuArray{Float64}(cache.interfaces.u)
+    neighbor_ids = CuArray{Int64}(cache.interfaces.neighbor_ids)
+    orientations = CuArray{Int64}(cache.interfaces.orientations)
+    surface_flux_arr = CuArray{Float64}(undef, 1, size(interfaces_u)[2:end]...)
+    surface_flux_values = CuArray{Float64}(cache.elements.surface_flux_values)
 
-    size_arr = CuArray{Float32}(undef, size(interfaces_u, 3), size(interfaces_u, 4))
+    size_arr = CuArray{Float64}(undef, size(interfaces_u, 3), size(interfaces_u, 4))
 
     surface_flux_kernel = @cuda launch = false surface_flux_kernel!(surface_flux_arr, interfaces_u, orientations, equations, surface_flux)
     surface_flux_kernel(surface_flux_arr, interfaces_u, orientations, equations, surface_flux; configurator_2d(surface_flux_kernel, size_arr)...)
 
-    size_arr = CuArray{Float32}(undef, size(surface_flux_values, 1), size(interfaces_u, 3), size(interfaces_u, 4))
+    size_arr = CuArray{Float64}(undef, size(surface_flux_values, 1), size(interfaces_u, 3), size(interfaces_u, 4))
 
     interface_flux_kernel = @cuda launch = false interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_ids, orientations)
     interface_flux_kernel(surface_flux_values, surface_flux_arr, neighbor_ids, orientations; configurator_3d(interface_flux_kernel, size_arr)...)
@@ -283,10 +283,10 @@ end
 # Calculate surface integrals
 function cuda_surface_integral!(du, mesh::TreeMesh{2}, dg::DGSEM, cache) # surface_integral
 
-    factor_arr = CuArray{Float32}([dg.basis.boundary_interpolation[1, 1], dg.basis.boundary_interpolation[size(du, 2), 2]])
-    surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
+    factor_arr = CuArray{Float64}([dg.basis.boundary_interpolation[1, 1], dg.basis.boundary_interpolation[size(du, 2), 2]])
+    surface_flux_values = CuArray{Float64}(cache.elements.surface_flux_values)
 
-    size_arr = CuArray{Float32}(undef, size(du, 1), size(du, 2), size(du, 4))
+    size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2), size(du, 4))
 
     surface_integral_kernel = @cuda launch = false surface_integral_kernel!(du, factor_arr, surface_flux_values)
     surface_integral_kernel(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel, size_arr)...)
@@ -313,9 +313,9 @@ end
 # Apply Jacobian from mapping to reference element
 function cuda_jacobian!(du, mesh::TreeMesh{2}, cache)
 
-    inverse_jacobian = CuArray{Float32}(cache.elements.inverse_jacobian)
+    inverse_jacobian = CuArray{Float64}(cache.elements.inverse_jacobian)
 
-    size_arr = CuArray{Float32}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
+    size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
 
     jacobian_kernel = @cuda launch = false jacobian_kernel!(du, inverse_jacobian)
     jacobian_kernel(du, inverse_jacobian; configurator_3d(jacobian_kernel, size_arr)...)
@@ -357,8 +357,8 @@ end
 function cuda_sources!(du, u, t, source_terms,
     equations::AbstractEquations{2}, cache)
 
-    node_coordinates = CuArray{Float32}(cache.elements.node_coordinates)
-    size_arr = CuArray{Float32}(undef, size(u, 2)^2, size(u, 4))
+    node_coordinates = CuArray{Float64}(cache.elements.node_coordinates)
+    size_arr = CuArray{Float64}(undef, size(u, 2)^2, size(u, 4))
 
     source_terms_kernel = @cuda launch = false source_terms_kernel!(du, u, node_coordinates, t, equations, source_terms)
     source_terms_kernel(du, u, node_coordinates, t, equations, source_terms; configurator_2d(source_terms_kernel, size_arr)...)
@@ -415,13 +415,3 @@ apply_jacobian!(du, mesh, equations, solver, cache)
 calc_sources!(du, u, t,
     source_terms, equations, solver, cache) =#
 
-#################################################################################
-
-#= nelements(dg::DG, cache) = nelements(cache.elements) =#
-
-#= nelements(elements::ElementContainer2D) = length(elements.cell_ids) =#
-
-#= ntuple(_ -> StaticInt(nnodes(solver)), ndims(mesh))..., nelements(solver, cache) =#
-
-#= unsafe_wrap(Array{eltype(u_ode),ndims(mesh) + 2}, pointer(u_ode),
-    (nvariables(equations), ntuple(_ -> nnodes(solver), ndims(mesh))..., nelements(solver, cache))) =#

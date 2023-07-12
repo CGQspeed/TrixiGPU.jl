@@ -1,5 +1,5 @@
 # The header part of test
-equations = CompressibleEulerEquations2D(1.4f0)
+equations = CompressibleEulerEquations2D(1.4)
 
 initial_condition = initial_condition_convergence_test
 solver = DGSEM(polydeg=3, surface_flux=flux_lax_friedrichs)

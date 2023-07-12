@@ -286,12 +286,12 @@ function surface_integral_kernel!(du, factor_arr, surface_flux_values)
         j2 = rem(j - 1, size(du, 2)) + 1
 
         @inbounds begin
-            du[i, 1, j1, j2, k] = du[i, 1, j1, j2, k] - surface_flux_values[i, j1, j2, 1, k] * factor_arr[1]
-            du[i, size(du, 2), j1, j2, k] = du[i, size(du, 2), j1, j2, k] + surface_flux_values[i, j1, j2, 2, k] * factor_arr[2]
-            du[i, j1, 1, j2, k] = du[i, j1, 1, j2, k] - surface_flux_values[i, j1, j2, 3, k] * factor_arr[1]
-            du[i, j1, size(du, 2), j2, k] = du[i, j1, size(du, 2), j2, k] + surface_flux_values[i, j1, j2, 4, k] * factor_arr[2]
-            du[i, j1, j2, 1, k] = du[i, j1, j2, 1, k] - surface_flux_values[i, j1, j2, 5, k] * factor_arr[1]
-            du[i, j1, j2, size(du, 2), k] = du[i, j1, j2, size(du, 2), k] + surface_flux_values[i, j1, j2, 6, k] * factor_arr[2]
+            du[i, 1, j1, j2, k] -= surface_flux_values[i, j1, j2, 1, k] * factor_arr[1]
+            du[i, size(du, 2), j1, j2, k] += surface_flux_values[i, j1, j2, 2, k] * factor_arr[2]
+            du[i, j1, 1, j2, k] -= surface_flux_values[i, j1, j2, 3, k] * factor_arr[1]
+            du[i, j1, size(du, 2), j2, k] += surface_flux_values[i, j1, j2, 4, k] * factor_arr[2]
+            du[i, j1, j2, 1, k] -= surface_flux_values[i, j1, j2, 5, k] * factor_arr[1]
+            du[i, j1, j2, size(du, 2), k] += surface_flux_values[i, j1, j2, 6, k] * factor_arr[2]
         end
     end
 
@@ -314,7 +314,7 @@ end
 
 # Inside `rhs!()` raw implementation
 #################################################################################
-#= du, u = copy_to_gpu!(du, u)
+du, u = copy_to_gpu!(du, u)
 
 cuda_volume_integral!(
     du, u, mesh,
@@ -327,12 +327,12 @@ cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
     equations, solver, cache,)
 
-cuda_surface_integral!(du, mesh, solver, cache) =#
+cuda_surface_integral!(du, mesh, solver, cache)
 
 
 # For tests
 #################################################################################
-reset_du!(du, solver, cache)
+#= reset_du!(du, solver, cache)
 
 calc_volume_integral!(
     du, u, mesh,
@@ -348,4 +348,4 @@ calc_interface_flux!(
     solver.surface_integral, solver, cache)
 
 calc_surface_integral!(
-    du, u, mesh, equations, solver.surface_integral, solver, cache)
+    du, u, mesh, equations, solver.surface_integral, solver, cache) =#

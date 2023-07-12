@@ -217,10 +217,10 @@ end
 # CUDA kernel for setting interface fluxes on orientation 1 and 2
 function interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_ids, orientations)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    j2 = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
-    if (i <= size(surface_flux_values, 1) && j2 <= size(surface_flux_arr, 3) && k <= size(surface_flux_arr, 4))
+    if (i <= size(surface_flux_values, 1) && j <= size(surface_flux_arr, 3) && k <= size(surface_flux_arr, 4))
         left_id = neighbor_ids[1, k]
         right_id = neighbor_ids[2, k]
 
@@ -228,8 +228,8 @@ function interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_
         right_direction = 2 * orientations[k] - 1
 
         @inbounds begin
-            surface_flux_values[i, j2, left_direction, left_id] = surface_flux_arr[1, i, j2, k]
-            surface_flux_values[i, j2, right_direction, right_id] = surface_flux_arr[1, i, j2, k]
+            surface_flux_values[i, j, left_direction, left_id] = surface_flux_arr[1, i, j, k]
+            surface_flux_values[i, j, right_direction, right_id] = surface_flux_arr[1, i, j, k]
         end
     end
 
@@ -265,15 +265,15 @@ end
 # CUDA kernel for calculating surface integrals along axis x and y
 function surface_integral_kernel!(du, factor_arr, surface_flux_values)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    j1 = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
-    if (i <= size(du, 1) && j1 <= size(du, 2) && k <= size(du, 4))
+    if (i <= size(du, 1) && j <= size(du, 2) && k <= size(du, 4))
         @inbounds begin
-            du[i, 1, j1, k] -= surface_flux_values[i, j1, 1, k] * factor_arr[1]
-            du[i, size(du, 2), j1, k] += surface_flux_values[i, j1, 2, k] * factor_arr[2]
-            du[i, j1, 1, k] -= surface_flux_values[i, j1, 3, k] * factor_arr[1]
-            du[i, j1, size(du, 2), k] += surface_flux_values[i, j1, 4, k] * factor_arr[2]
+            du[i, 1, j, k] -= surface_flux_values[i, j, 1, k] * factor_arr[1]
+            du[i, size(du, 2), j, k] += surface_flux_values[i, j, 2, k] * factor_arr[2]
+            du[i, j, 1, k] -= surface_flux_values[i, j, 3, k] * factor_arr[1]
+            du[i, j, size(du, 2), k] += surface_flux_values[i, j, 4, k] * factor_arr[2]
         end
     end
 
@@ -368,7 +368,7 @@ end
 
 # Inside `rhs!()` raw implementation
 #################################################################################
-du, u = copy_to_gpu!(du, u)
+#= du, u = copy_to_gpu!(du, u)
 
 cuda_volume_integral!(
     du, u, mesh,
@@ -388,11 +388,11 @@ cuda_jacobian!(du, mesh, cache)
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
 
-du, u = copy_to_cpu!(du, u)
+du, u = copy_to_cpu!(du, u) =#
 
 # For tests
 #################################################################################
-#= reset_du!(du, solver, cache)
+reset_du!(du, solver, cache)
 
 calc_volume_integral!(
     du, u, mesh,
@@ -413,5 +413,5 @@ calc_surface_integral!(
 apply_jacobian!(du, mesh, equations, solver, cache)
 
 calc_sources!(du, u, t,
-    source_terms, equations, solver, cache) =#
+    source_terms, equations, solver, cache)
 

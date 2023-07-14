@@ -330,7 +330,6 @@ cuda_interface_flux!(
 
 cuda_surface_integral!(du, mesh, solver, cache)
 
-
 # For tests
 #################################################################################
 #= reset_du!(du, solver, cache)

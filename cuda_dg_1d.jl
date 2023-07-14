@@ -118,25 +118,7 @@ function weak_form_kernel!(du, derivative_dhat, flux_arr)
     return nothing
 end
 
-# Calculate volume integral
-function cuda_volume_integral!(du, u, mesh::TreeMesh{1},
-    nonconservative_terms, equations,
-    volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
-
-    derivative_dhat = CuArray{Float64}(dg.basis.derivative_dhat)
-    flux_arr = similar(u)
-
-    size_arr = CuArray{Float64}(undef, size(u, 2), size(u, 3))
-
-    flux_kernel = @cuda launch = false flux_kernel!(flux_arr, u, equations, flux)
-    flux_kernel(flux_arr, u, equations, flux; configurator_2d(flux_kernel, size_arr)...)
-
-    weak_form_kernel = @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr)
-    weak_form_kernel(du, derivative_dhat, flux_arr; configurator_3d(weak_form_kernel, du)...)
-
-    return nothing
-end
-
+# CUDA kernel for calculating volume fluxes in direction x
 function volume_flux_kernel!(volume_flux_arr, u, equations::AbstractEquations{1}, volume_flux::Function)
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -159,6 +141,61 @@ function volume_flux_kernel!(volume_flux_arr, u, equations::AbstractEquations{1}
     return nothing
 end
 
+# CUDA kernel for calculating volume integrals
+function volume_integral_kernel!(du, derivative_split, volume_flux_arr)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+
+    if (i <= size(du, 1) && j <= size(du, 2) && k <= size(du, 3))
+        @inbounds begin
+            for ii in axes(du, 2)
+                du[i, j, k] += derivative_split[j, ii] * volume_flux_arr[i, j, ii, k]
+            end
+        end
+    end
+
+    return nothing
+end
+
+# Launch CUDA kernels to calculate volume integrals
+function cuda_volume_integral!(du, u, mesh::TreeMesh{1},
+    nonconservative_terms, equations,
+    volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
+
+    derivative_dhat = CuArray{Float64}(dg.basis.derivative_dhat)
+    flux_arr = similar(u)
+
+    size_arr = CuArray{Float64}(undef, size(u, 2), size(u, 3))
+
+    flux_kernel = @cuda launch = false flux_kernel!(flux_arr, u, equations, flux)
+    flux_kernel(flux_arr, u, equations, flux; configurator_2d(flux_kernel, size_arr)...)
+
+    weak_form_kernel = @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr)
+    weak_form_kernel(du, derivative_dhat, flux_arr; configurator_3d(weak_form_kernel, du)...)
+
+    return nothing
+end
+
+# Launch CUDA kernels to calculate volume integrals
+function cuda_volume_integral!(du, u, mesh::TreeMesh{1},
+    nonconservative_terms::False, equations,
+    volume_integral::VolumeIntegralFluxDifferencing, dg::DGSEM)
+
+    derivative_split = CuArray{Float64}(dg.basis.derivative_split)
+    volume_flux_arr = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 3))
+
+    size_arr = CuArray{Float64}(undef, size(u, 2)^2, size(u, 3))
+
+    volume_flux_kernel = @cuda launch = false volume_flux_kernel!(volume_flux_arr, u, equations, volume_flux)
+    volume_flux_kernel(volume_flux_arr, u, equations, volume_flux; configurator_2d(volume_flux_kernel, size_arr)...)
+
+    volume_integral_kernel = @cuda launch = false volume_integral_kernel!(du, derivative_split, volume_flux_arr)
+    volume_integral_kernel(du, derivative_split, volume_flux_arr; configurator_3d(volume_integral_kernel, du)...)
+
+    return nothing
+end
+
 # CUDA kernel for prolonging two interfaces in direction x
 function prolong_interfaces_kernel!(interfaces_u, u, neighbor_ids)
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
@@ -177,7 +214,7 @@ function prolong_interfaces_kernel!(interfaces_u, u, neighbor_ids)
     return nothing
 end
 
-# Prolong solution to interfaces
+# Launch CUDA kernel to prolong solution to interfaces
 function cuda_prolong2interfaces!(u, mesh::TreeMesh{1}, cache)
 
     interfaces_u = CuArray{Float64}(cache.interfaces.u)
@@ -230,7 +267,7 @@ function interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_
     return nothing
 end
 
-# Calculate interface fluxes
+# Launch CUDA kernels to calculate interface fluxes
 function cuda_interface_flux!(mesh::TreeMesh{1}, nonconservative_terms::False,
     equations, dg::DGSEM, cache)
 
@@ -273,7 +310,7 @@ function surface_integral_kernel!(du, factor_arr, surface_flux_values)
     return nothing
 end
 
-# Calculate surface integrals
+# Launch CUDA kernel to calculate surface integrals
 function cuda_surface_integral!(du, mesh::TreeMesh{1}, dg::DGSEM, cache)
 
     factor_arr = CuArray{Float64}([dg.basis.boundary_interpolation[1, 1], dg.basis.boundary_interpolation[size(du, 2), 2]])
@@ -300,7 +337,7 @@ function jacobian_kernel!(du, inverse_jacobian)
     return nothing
 end
 
-# Apply Jacobian from mapping to reference element
+# Launch CUDA kernel to apply Jacobian to reference element
 function cuda_jacobian!(du, mesh::TreeMesh{1}, cache)
 
     inverse_jacobian = CuArray{Float64}(cache.elements.inverse_jacobian)
@@ -331,14 +368,14 @@ function source_terms_kernel!(du, u, node_coordinates, t, equations::AbstractEqu
     return nothing
 end
 
-# Calculate source terms               
+# Return nothing to calculate source terms              
 function cuda_sources!(du, u, t, source_terms::Nothing,
     equations::AbstractEquations{1}, cache)
 
     return nothing
 end
 
-# Calculate source terms 
+# Launch CUDA kernel to calculate source terms 
 function cuda_sources!(du, u, t, source_terms,
     equations::AbstractEquations{1}, cache)
 
@@ -356,22 +393,12 @@ end
 #################################################################################
 du, u = copy_to_gpu!(du, u)
 
-volume_flux = solver.volume_integral.volume_flux
-volume_flux_arr = CuArray{Float32}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 3))
-
-size_arr = CuArray{Float32}(undef, size(u, 2)^2, size(u, 3))
-
-@benchmark begin
-    volume_flux_kernel = @cuda launch = false volume_flux_kernel!(volume_flux_arr, u, equations, volume_flux)
-    volume_flux_kernel(volume_flux_arr, u, equations, volume_flux; configurator_2d(volume_flux_kernel, size_arr)...)
-end
-
-#= cuda_volume_integral!(
+cuda_volume_integral!(
     du, u, mesh,
     have_nonconservative_terms(equations), equations,
     solver.volume_integral, solver)
 
-cuda_prolong2interfaces!(u, mesh, cache)
+#= cuda_prolong2interfaces!(u, mesh, cache)
 
 cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
@@ -393,9 +420,9 @@ du, u = copy_to_cpu!(du, u) =#
 calc_volume_integral!(
     du, u, mesh,
     have_nonconservative_terms(equations), equations,
-    solver.volume_integral, solver, cache)
+    solver.volume_integral, solver, cache) =#
 
-prolong2interfaces!(
+#= prolong2interfaces!(
     cache, u, mesh, equations, solver.surface_integral, solver)
 
 calc_interface_flux!(
@@ -410,47 +437,3 @@ apply_jacobian!(du, mesh, equations, solver, cache)
 
 calc_sources!(du, u, t, 
     source_terms, equations, solver, cache) =#
-
-
-
-
-#= function rhs!(du, u, t,
-    mesh::TreeMesh{1}, equations,
-    initial_condition, boundary_conditions, source_terms::Source,
-    dg::DG, cache) where {Source}
-
-    reset_du!(du, solver, cache)
-
-    calc_volume_integral!(
-        du, u, mesh,
-        have_nonconservative_terms(equations), equations,
-        solver.volume_integral, solver, cache)
-
-    prolong2interfaces!(
-        cache, u, mesh, equations, solver.surface_integral, solver)
-
-    calc_interface_flux!(
-        cache.elements.surface_flux_values, mesh,
-        have_nonconservative_terms(equations), equations,
-        solver.surface_integral, solver, cache)
-
-    calc_surface_integral!(
-        du, u, mesh, equations, solver.surface_integral, solver, cache)
-
-    apply_jacobian!(
-        du, mesh, equations, solver, cache)
-
-    calc_sources!(du, u, t, source_terms, equations, dg, cache)
-
-    return nothing
-end
-
-function semidiscretize(semi::AbstractSemidiscretization, tspan)
-    u0_ode = compute_coefficients(first(tspan), semi)
-
-    iip = true
-    specialize = SciMLBase.FullSpecialize
-    return ODEProblem{iip,specialize}(rhs!, u0_ode, tspan, semi)
-end =#
-
-

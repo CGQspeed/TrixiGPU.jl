@@ -1,6 +1,4 @@
-# The header part of test
-Random.seed!(12345)
-
+# The header part for testing basic kernels in 2D
 advection_velocity = (0.2, -0.7)
 equations = LinearScalarAdvectionEquation2D(advection_velocity)
 

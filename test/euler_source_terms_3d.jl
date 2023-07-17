@@ -1,4 +1,4 @@
-# The header part of test
+# The header part for testing source terms in 3D 
 equations = CompressibleEulerEquations3D(1.4)
 
 initial_condition = initial_condition_convergence_test

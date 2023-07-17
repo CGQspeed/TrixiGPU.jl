@@ -1,10 +1,14 @@
 # Remove it after first run to avoid recompilation
 #= include("header.jl") =#
 
+# Set random seed for random tests
+Random.seed!(123)
+
 # Use the target test header file
 #= include("test/advection_basic_3d.jl") =#
-include("test/euler_ec_3d.jl")
+#= include("test/euler_ec_3d.jl") =#
 #= include("test/euler_source_terms_3d.jl") =#
+include("test/hypdiff_nonperiodic_3d.jl")
 
 # Kernel configurators 
 #################################################################################
@@ -269,9 +273,9 @@ end
 # Launch CUDA kernel to prolong solution to interfaces
 function cuda_prolong2interfaces!(u, mesh::TreeMesh{3}, cache)
 
-    interfaces_u = CuArray{Float64}(cache.interfaces.u)
     neighbor_ids = CuArray{Int64}(cache.interfaces.neighbor_ids)
     orientations = CuArray{Int64}(cache.interfaces.orientations)
+    interfaces_u = CuArray{Float64}(cache.interfaces.u)
 
     size_arr = CuArray{Float64}(undef, size(interfaces_u, 2) * size(interfaces_u, 3)^2, size(interfaces_u, 5))
 
@@ -336,9 +340,9 @@ function cuda_interface_flux!(mesh::TreeMesh{3}, nonconservative_terms::False,
     equations, dg::DGSEM, cache)
 
     surface_flux = dg.surface_integral.surface_flux
-    interfaces_u = CuArray{Float64}(cache.interfaces.u)
     neighbor_ids = CuArray{Int64}(cache.interfaces.neighbor_ids)
     orientations = CuArray{Int64}(cache.interfaces.orientations)
+    interfaces_u = CuArray{Float64}(cache.interfaces.u)
     surface_flux_arr = CuArray{Float64}(undef, 1, size(interfaces_u)[2:end]...)
     surface_flux_values = CuArray{Float64}(cache.elements.surface_flux_values)
 
@@ -357,57 +361,77 @@ function cuda_interface_flux!(mesh::TreeMesh{3}, nonconservative_terms::False,
     return nothing
 end
 
-# CUDA kernel for calculating surface integrals along axis x
-function surface_integral_kernel1!(du, factor_arr, surface_flux_values)
-    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-    k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+# CUDA kernel for prolonging two boundaries in direction x, y, and z
+function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_sides, orientations)
+    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-    if (i <= size(du, 1) && j <= size(du, 2)^2 && k <= size(du, 5))
-        j1 = div(j - 1, size(du, 2)) + 1
-        j2 = rem(j - 1, size(du, 2)) + 1
+    if (j <= size(boundaries_u, 2) * size(boundaries_u, 3)^2 && k <= size(boundaries_u, 5))
+        j1 = div(j - 1, size(boundaries_u, 3)^2) + 1
+        j2 = div(rem(j - 1, size(boundaries_u, 3)^2), size(boundaries_u, 3)) + 1
+        j3 = rem(rem(j - 1, size(boundaries_u, 3)^2), size(boundaries_u, 3)) + 1
+
+        element = neighbor_ids[k]
+        side = neighbor_sides[k]
+        orientation = orientations[k]
 
         @inbounds begin
-            du[i, 1, j1, j2, k] -= surface_flux_values[i, j1, j2, 1, k] * factor_arr[1]
-            du[i, size(du, 2), j1, j2, k] += surface_flux_values[i, j1, j2, 2, k] * factor_arr[2]
+            boundaries_u[1, j1, j2, j3, k] = u[j1,
+                isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j2+isequal(orientation, 3)*j2,
+                isequal(orientation, 1)*j2+isequal(orientation, 2)*size(u, 2)+isequal(orientation, 3)*j3,
+                isequal(orientation, 1)*j3+isequal(orientation, 2)*j3+isequal(orientation, 3)*size(u, 2),
+                element] * isequal(side, 1) # Set to 0 instead of NaN
+            boundaries_u[2, j1, j2, j3, k] = u[j1,
+                isequal(orientation, 1)*1+isequal(orientation, 2)*j2+isequal(orientation, 3)*j2,
+                isequal(orientation, 1)*j2+isequal(orientation, 2)*1+isequal(orientation, 3)*j3,
+                isequal(orientation, 1)*j3+isequal(orientation, 2)*j3+isequal(orientation, 3)*1,
+                element] * (1 - isequal(side, 1)) # Set to 0 instead of NaN
         end
     end
 
     return nothing
 end
 
-# CUDA kernel for calculating surface integrals along axis y
-function surface_integral_kernel2!(du, factor_arr, surface_flux_values)
-    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-    k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+# Launch CUDA kernel to prolong solution to boundaries
+function cuda_prolong2boundaries!(u, mesh::TreeMesh{3}, cache)
 
-    if (i <= size(du, 1) && j <= size(du, 2)^2 && k <= size(du, 5))
-        j1 = div(j - 1, size(du, 2)) + 1
-        j2 = rem(j - 1, size(du, 2)) + 1
+    neighbor_ids = CuArray{Int64}(cache.boundaries.neighbor_ids)
+    neighbor_sides = CuArray{Int64}(cache.boundaries.neighbor_sides)
+    orientations = CuArray{Int64}(cache.boundaries.orientations)
+    boundaries_u = CuArray{Float64}(cache.boundaries.u)
 
-        @inbounds begin
-            du[i, j1, 1, j2, k] -= surface_flux_values[i, j1, j2, 3, k] * factor_arr[1]
-            du[i, j1, size(du, 2), j2, k] += surface_flux_values[i, j1, j2, 4, k] * factor_arr[2]
-        end
-    end
+    size_arr = CuArray{Float64}(undef, size(boundaries_u, 2) * size(boundaries_u, 3)^2, size(boundaries_u, 5))
+
+    prolong_boundaries_kernel = @cuda launch = false prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_sides, orientations)
+    prolong_boundaries_kernel(boundaries_u, u, neighbor_ids, neighbor_sides, orientations; configurator_2d(prolong_boundaries_kernel, size_arr)...)
+
+    cache.boundaries.u = boundaries_u  # Automatically copy back to CPU
 
     return nothing
 end
 
-# CUDA kernel for calculating surface integrals along axis z
-function surface_integral_kernel3!(du, factor_arr, surface_flux_values)
+# CUDA kernel for calculating surface integrals along axis x, y, and z
+function surface_integral_kernel_new!(du, factor_arr, surface_flux_values)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
-    if (i <= size(du, 1) && j <= size(du, 2)^2 && k <= size(du, 5))
-        j1 = div(j - 1, size(du, 2)) + 1
-        j2 = rem(j - 1, size(du, 2)) + 1
+    if (i <= size(du, 1) && j <= size(du, 2)^3 && k <= size(du, 5))
+        j1 = div(j - 1, size(du, 2)^2) + 1
+        j2 = div(rem(j - 1, size(du, 2)^2), size(du, 2)) + 1
+        j3 = rem(rem(j - 1, size(du, 2)^2), size(du, 2)) + 1
 
         @inbounds begin
-            du[i, j1, j2, 1, k] -= surface_flux_values[i, j1, j2, 5, k] * factor_arr[1]
-            du[i, j1, j2, size(du, 2), k] += surface_flux_values[i, j1, j2, 6, k] * factor_arr[2]
+            du[i, j1, j2, j3, k] -= (surface_flux_values[i, j2, j3, 1, k] * isequal(j1, 1)
+                                     +
+                                     surface_flux_values[i, j1, j3, 3, k] * isequal(j2, 1)
+                                     +
+                                     surface_flux_values[i, j1, j2, 5, k] * isequal(j3, 1)) * factor_arr[1]
+            du[i, j1, j2, j3, k] += (surface_flux_values[i, j2, j3, 2, k] * isequal(j1, size(du, 2))
+                                     +
+                                     surface_flux_values[i, j1, j3, 4, k] * isequal(j2, size(du, 2))
+                                     +
+                                     surface_flux_values[i, j1, j2, 6, k] * isequal(j3, size(du, 2))) * factor_arr[2]
         end
     end
 
@@ -420,16 +444,10 @@ function cuda_surface_integral!(du, mesh::TreeMesh{3}, dg::DGSEM, cache) # surfa
     factor_arr = CuArray{Float64}([dg.basis.boundary_interpolation[1, 1], dg.basis.boundary_interpolation[size(du, 2), 2]])
     surface_flux_values = CuArray{Float64}(cache.elements.surface_flux_values)
 
-    size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 5))
+    size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^3, size(du, 5))
 
-    surface_integral_kernel1 = @cuda launch = false surface_integral_kernel1!(du, factor_arr, surface_flux_values)
-    surface_integral_kernel1(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel1, size_arr)...)
-
-    surface_integral_kernel2 = @cuda launch = false surface_integral_kernel2!(du, factor_arr, surface_flux_values)
-    surface_integral_kernel2(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel2, size_arr)...)
-
-    surface_integral_kernel3 = @cuda launch = false surface_integral_kernel3!(du, factor_arr, surface_flux_values)
-    surface_integral_kernel3(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel3, size_arr)...)
+    surface_integral_kernel = @cuda launch = false surface_integral_kernel!(du, factor_arr, surface_flux_values)
+    surface_integral_kernel(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel, size_arr)...)
 
     return nothing
 end
@@ -518,15 +536,17 @@ cuda_volume_integral!(
     have_nonconservative_terms(equations), equations,
     solver.volume_integral, solver)
 
-#= cuda_prolong2interfaces!(u, mesh, cache)
+cuda_prolong2interfaces!(u, mesh, cache)
 
 cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
     equations, solver, cache,)
 
+cuda_prolong2boundaries!(u, mesh, cache)
+
 cuda_surface_integral!(du, mesh, solver, cache)
 
-cuda_jacobian!(du, mesh, cache)
+#= cuda_jacobian!(du, mesh, cache)
 
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
@@ -550,7 +570,10 @@ calc_interface_flux!(
     have_nonconservative_terms(equations), equations,
     solver.surface_integral, solver, cache)
 
-calc_surface_integral!(
+prolong2boundaries!(cache, u, mesh, equations,
+    solver.surface_integral, solver) =#
+
+#= calc_surface_integral!(
     du, u, mesh, equations, solver.surface_integral, solver, cache)
 
 apply_jacobian!(du, mesh, equations, solver, cache)

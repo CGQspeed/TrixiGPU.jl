@@ -1,5 +1,5 @@
-# The header part of test
-equations = CompressibleEulerEquations1D(1.4f0)
+# The header part for testing flux differencing in 1D
+equations = CompressibleEulerEquations1D(1.4)
 
 initial_condition = initial_condition_weak_blast_wave
 

@@ -14,7 +14,7 @@ include("test/hypdiff_harmonic_nonperiodic_2d.jl")
 #################################################################################
 
 # CUDA kernel configurator for 1D array computing
-function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float64,1})
+function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{<:Any,1})
     config = launch_configuration(kernel.fun)
 
     threads = min(length(array), config.threads)
@@ -24,7 +24,7 @@ function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float64,1})
 end
 
 # CUDA kernel configurator for 2D array computing
-function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float64,2})
+function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{<:Any,2})
     config = launch_configuration(kernel.fun)
 
     threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
@@ -34,7 +34,7 @@ function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float64,2})
 end
 
 # CUDA kernel configurator for 3D array computing
-function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{Float64,3})
+function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{<:Any,3})
     config = launch_configuration(kernel.fun)
 
     threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))

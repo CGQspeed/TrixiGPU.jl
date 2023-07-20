@@ -410,6 +410,29 @@ function cuda_prolong2boundaries!(u, mesh::TreeMesh{3}, cache)
     return nothing
 end
 
+# CUDA kernel for getting last and first indices
+function last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+
+    if (i <= length(n_boundaries_per_direction))
+        @inbounds begin
+            for ii in 1:i
+                lasts[i] += n_boundaries_per_direction[ii]
+            end
+            firsts[i] = lasts[i] - n_boundaries_per_direction[i] + 1
+        end
+    end
+
+    return nothing
+end
+
+# Assert 
+function cuda_boundary_flux!(t, mesh::TreeMesh{3}, boundary_condition::BoundaryConditionPeriodic,
+    equations, cache)
+
+    @assert isequal(length(cache.boundaries.orientations), 1)
+end
+
 # CUDA kernel for calculating surface integrals along axis x, y, and z
 function surface_integral_kernel_new!(du, factor_arr, surface_flux_values)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
@@ -507,7 +530,7 @@ function source_terms_kernel!(du, u, node_coordinates, t, equations::AbstractEqu
     return nothing
 end
 
-# Return nothing to calculate source terms               
+# Return nothing           
 function cuda_sources!(du, u, t, source_terms::Nothing,
     equations::AbstractEquations{3}, cache)
 
@@ -546,12 +569,12 @@ cuda_prolong2boundaries!(u, mesh, cache)
 
 cuda_surface_integral!(du, mesh, solver, cache)
 
-#= cuda_jacobian!(du, mesh, cache)
+cuda_jacobian!(du, mesh, cache)
 
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
 
-du, u = copy_to_cpu!(du, u) =#
+du, u = copy_to_cpu!(du, u)
 
 # For tests
 #################################################################################
@@ -580,3 +603,6 @@ apply_jacobian!(du, mesh, equations, solver, cache)
 
 calc_sources!(du, u, t,
     source_terms, equations, solver, cache) =#
+
+# Pack kernels into `rhs!()`
+#################################################################################

@@ -1,14 +1,14 @@
 # Remove it after first run to avoid recompilation
-#= include("header.jl") =#
+include("header.jl")
 
 # Set random seed for random tests
-Random.seed!(123)
+#= Random.seed!(123) =#
 
 # Use the target test header file
 #= include("test/advection_basic_2d.jl") =#
 #= include("test/euler_ec_2d.jl") =#
 #= include("test/euler_source_terms_2d.jl") =#
-include("test/hypdiff_harmonic_nonperiodic_2d.jl")
+#= include("test/hypdiff_harmonic_nonperiodic_2d.jl") =#
 
 # Kernel configurators 
 #################################################################################
@@ -387,6 +387,29 @@ function cuda_prolong2boundaries!(u, mesh::TreeMesh{2}, cache)
     return nothing
 end
 
+# CUDA kernel for getting last and first indices
+function last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+
+    if (i <= length(n_boundaries_per_direction))
+        @inbounds begin
+            for ii in 1:i
+                lasts[i] += n_boundaries_per_direction[ii]
+            end
+            firsts[i] = lasts[i] - n_boundaries_per_direction[i] + 1
+        end
+    end
+
+    return nothing
+end
+
+# Assert 
+function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_condition::BoundaryConditionPeriodic,
+    equations, cache)
+
+    @assert isequal(length(cache.boundaries.orientations), 1)
+end
+
 # CUDA kernel for calculating surface integrals along axis x and y
 function surface_integral_kernel!(du, factor_arr, surface_flux_values)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
@@ -477,7 +500,7 @@ function source_terms_kernel!(du, u, node_coordinates, t, equations::AbstractEqu
     return nothing
 end
 
-# Return nothing to calculate source terms              
+# Return nothing             
 function cuda_sources!(du, u, t, source_terms::Nothing,
     equations::AbstractEquations{2}, cache)
 
@@ -499,7 +522,7 @@ end
 
 # Inside `rhs!()` raw implementation
 #################################################################################
-du, u = copy_to_gpu!(du, u)
+#= du, u = copy_to_gpu!(du, u)
 
 cuda_volume_integral!(
     du, u, mesh,
@@ -516,7 +539,7 @@ cuda_prolong2boundaries!(u, mesh, cache)
 
 cuda_surface_integral!(du, mesh, solver, cache)
 
-#= cuda_jacobian!(du, mesh, cache)
+cuda_jacobian!(du, mesh, cache)
 
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
@@ -541,12 +564,128 @@ calc_interface_flux!(
     solver.surface_integral, solver, cache)
 
 prolong2boundaries!(cache, u, mesh, equations,
-    solver.surface_integral, solver) =#
+    solver.surface_integral, solver)
 
-#= calc_surface_integral!(
+calc_surface_integral!(
     du, u, mesh, equations, solver.surface_integral, solver, cache)
 
 apply_jacobian!(du, mesh, equations, solver, cache)
 
 calc_sources!(du, u, t,
     source_terms, equations, solver, cache) =#
+
+# Pack kernels into `rhs_cpu!()`
+#################################################################################
+function rhs_cpu!(du, u, t, mesh::TreeMesh{2}, equations,
+    initial_condition, boundary_conditions, source_terms::Source,
+    dg::DGSEM, cache) where {Source}
+
+    reset_du!(du, dg, cache)
+
+    calc_volume_integral!(
+        du, u, mesh,
+        have_nonconservative_terms(equations), equations,
+        dg.volume_integral, dg, cache)
+
+    prolong2interfaces!(
+        cache, u, mesh, equations, dg.surface_integral, dg)
+
+    calc_interface_flux!(
+        cache.elements.surface_flux_values, mesh,
+        have_nonconservative_terms(equations), equations,
+        dg.surface_integral, dg, cache)
+
+    prolong2boundaries!(cache, u, mesh, equations,
+        dg.surface_integral, dg)
+
+    calc_boundary_flux!(cache, t, boundary_conditions, mesh, equations,
+        dg.surface_integral, dg)
+
+    prolong2mortars!(cache, u, mesh, equations,
+        dg.mortar, dg.surface_integral, dg)
+
+    calc_mortar_flux!(cache.elements.surface_flux_values, mesh,
+        have_nonconservative_terms(equations), equations,
+        dg.mortar, dg.surface_integral, dg, cache)
+
+    calc_surface_integral!(
+        du, u, mesh, equations, dg.surface_integral, dg, cache)
+
+    apply_jacobian!(du, mesh, equations, dg, cache)
+
+    calc_sources!(du, u, t,
+        source_terms, equations, dg, cache)
+
+    return nothing
+end
+
+function rhs_cpu!(du_ode, u_ode, semi::SemidiscretizationHyperbolic, t)
+    @unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
+
+    u = wrap_array(u_ode, mesh, equations, solver, cache)
+    du = wrap_array(du_ode, mesh, equations, solver, cache)
+
+    rhs_cpu!(du, u, t, mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache)
+
+    return nothing
+end
+
+function semidiscretize_cpu(semi::SemidiscretizationHyperbolic, tspan)
+    u0_ode = compute_coefficients(first(tspan), semi)
+
+    iip = true
+    specialize = SciMLBase.FullSpecialize
+    return ODEProblem{iip,specialize}(rhs_cpu!, u0_ode, tspan, semi)
+end
+
+# Pack kernels into `rhs_gpu!()`
+#################################################################################
+function rhs_gpu!(du, u, t, mesh::TreeMesh{2}, equations,
+    initial_condition, boundary_conditions, source_terms::Source,
+    dg::DGSEM, cache) where {Source}
+
+    du, u = copy_to_gpu!(du, u)
+
+    cuda_volume_integral!(
+        du, u, mesh,
+        have_nonconservative_terms(equations), equations,
+        dg.volume_integral, dg)
+
+    cuda_prolong2interfaces!(u, mesh, cache)
+
+    cuda_interface_flux!(
+        mesh, have_nonconservative_terms(equations),
+        equations, dg, cache,)
+
+    #= cuda_prolong2boundaries!(u, mesh, cache) =#
+
+    cuda_surface_integral!(du, mesh, dg, cache)
+
+    cuda_jacobian!(du, mesh, cache)
+
+    cuda_sources!(du, u, t,
+        source_terms, equations, cache)
+
+    du, u = copy_to_cpu!(du, u)
+
+    return nothing
+end
+
+function rhs_gpu!(du_ode, u_ode, semi::SemidiscretizationHyperbolic, t)
+    @unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
+
+    u = wrap_array(u_ode, mesh, equations, solver, cache)
+    du = wrap_array(du_ode, mesh, equations, solver, cache)
+
+    rhs_gpu!(du, u, t, mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache)
+
+    return nothing
+end
+
+function semidiscretize_gpu(semi::SemidiscretizationHyperbolic, tspan)
+    u0_ode = compute_coefficients(first(tspan), semi)
+
+    iip = true
+    specialize = SciMLBase.FullSpecialize
+    return ODEProblem{iip,specialize}(rhs_gpu!, u0_ode, tspan, semi)
+end

@@ -311,7 +311,7 @@ function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_side
 
         @inbounds begin
             boundaries_u[1, j, k] = u[j, size(u, 2), element] * isequal(side, 1) # set to 0 instead of NaN
-            boundaries_u[2, j, k] = u[j, 1, element] * (1 - isequal(side, 1))
+            boundaries_u[2, j, k] = u[j, 1, element] * (1 - isequal(side, 1)) # set to 0 instead of NaN
         end
     end
 
@@ -333,6 +333,29 @@ function cuda_prolong2boundaries!(u, mesh::TreeMesh{1}, cache)
     cache.boundaries.u = boundaries_u  # Automatically copy back to CPU
 
     return nothing
+end
+
+# CUDA kernel for getting last and first indices
+function last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+
+    if (i <= length(n_boundaries_per_direction))
+        @inbounds begin
+            for ii in 1:i
+                lasts[i] += n_boundaries_per_direction[ii]
+            end
+            firsts[i] = lasts[i] - n_boundaries_per_direction[i] + 1
+        end
+    end
+
+    return nothing
+end
+
+# Assert 
+function cuda_boundary_flux!(t, mesh::TreeMesh{1}, boundary_condition::BoundaryConditionPeriodic,
+    equations, cache)
+
+    @assert isequal(length(cache.boundaries.orientations), 1)
 end
 
 # CUDA kernel for calculating surface integrals along axis x 
@@ -410,7 +433,7 @@ function source_terms_kernel!(du, u, node_coordinates, t, equations::AbstractEqu
     return nothing
 end
 
-# Return nothing to calculate source terms               
+# Return nothing             
 function cuda_sources!(du, u, t, source_terms::Nothing,
     equations::AbstractEquations{1}, cache)
 
@@ -444,18 +467,18 @@ cuda_prolong2interfaces!(u, mesh, cache)
 
 cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
-    equations, solver, cache,)
+    equations, solver, cache)
 
 cuda_prolong2boundaries!(u, mesh, cache)
 
 cuda_surface_integral!(du, mesh, solver, cache)
 
-#= cuda_jacobian!(du, mesh, cache)
+cuda_jacobian!(du, mesh, cache)
 
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
 
-du, u = copy_to_cpu!(du, u) =#
+du, u = copy_to_cpu!(du, u)
 
 # For tests
 #################################################################################
@@ -484,3 +507,6 @@ apply_jacobian!(du, mesh, equations, solver, cache)
 
 calc_sources!(du, u, t,
     source_terms, equations, solver, cache) =#
+
+# Pack kernels into `rhs!()`
+#################################################################################

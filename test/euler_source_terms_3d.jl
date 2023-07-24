@@ -1,14 +1,15 @@
-# The header part of test
-equations = CompressibleEulerEquations1D(1.4)
+# The header part for testing source terms in 3D 
+equations = CompressibleEulerEquations3D(1.4f0)
 
 initial_condition = initial_condition_convergence_test
 
-solver = DGSEM(polydeg=4, surface_flux=flux_lax_friedrichs)
+solver = DGSEM(polydeg=3, surface_flux=flux_lax_friedrichs,
+    volume_integral=VolumeIntegralWeakForm())
 
-coordinates_min = 0.0
-coordinates_max = 2.0
+coordinates_min = (0.0, 0.0, 0.0)
+coordinates_max = (2.0, 2.0, 2.0)
 mesh = TreeMesh(coordinates_min, coordinates_max,
-    initial_refinement_level=4,
+    initial_refinement_level=2,
     n_cells_max=10_000)
 
 semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition, solver,

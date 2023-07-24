@@ -9,6 +9,4 @@
 - The folder `profile` contains contents about how to profile GPU kernels.
 
 TODO List:
-- Simplify kernel arguments in 1D, 2D, and 3D linear advection GPU code
-- Complete basic kernels for `rhs!()` from `dg_1d.jl`, `dg_2d.jl`, and `dg_3d.jl`
-- Add more features to 1D, 2D, and 3D linear advection kernel functions
+- Add more features to `rhs!()` from `dg_1d.jl`, `dg_2d.jl`, and `dg_3d.jl`

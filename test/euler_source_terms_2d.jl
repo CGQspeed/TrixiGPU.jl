@@ -16,6 +16,7 @@ semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition, solver,
 @unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
 
 t = 0.0
+tspan = (0.0, 2.0)
 
 ode = semidiscretize(semi, tspan)
 u_ode = copy(ode.u0)

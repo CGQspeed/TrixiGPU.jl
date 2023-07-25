@@ -12,8 +12,9 @@ semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition_convergen
 @unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
 
 t = 0.0
-l = nvariables(equations) * nnodes(solver)^ndims(mesh) * nelements(solver, cache)
-du_ode = rand(Float64, l)
-u_ode = rand(Float64, l)
+
+ode = semidiscretize(semi, tspan)
+u_ode = copy(ode.u0)
+du_ode = similar(u_ode)
 u = wrap_array(u_ode, mesh, equations, solver, cache)
 du = wrap_array(du_ode, mesh, equations, solver, cache)

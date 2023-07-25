@@ -1,10 +1,10 @@
 # Remove it after first run to avoid recompilation
-include("header.jl")
+#= include("header.jl") =#
 
 # Use the target test header file
-#= include("tests/advection_basic_2d.jl") =#
+include("tests/advection_basic_2d.jl")
 #= include("tests/euler_ec_2d.jl") =#
-include("tests/euler_source_terms_2d.jl")
+#= include("tests/euler_source_terms_2d.jl") =#
 #= include("tests/hypdiff_harmonic_nonperiodic_2d.jl") =#
 
 # Kernel configurators 

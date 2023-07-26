@@ -332,13 +332,15 @@ function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_side
 end
 
 # Assert 
-function cuda_prolong2boundaries!(u, mesh::TreeMesh{1}, cache)
+function cuda_prolong2boundaries!(u, mesh::TreeMesh{1},
+    boundary_condition::BoundaryConditionPeriodic, cache)
 
-    @assert isequal(length(cache.boundaries.orientations), 1)
+    @assert isequal(length(cache.boundaries.orientations), 0)
 end
 
 # Launch CUDA kernel to prolong solution to boundaries
-function cuda_prolong2boundaries!(u, mesh::TreeMesh{1}, cache)
+function cuda_prolong2boundaries!(u, mesh::TreeMesh{1},
+    boundary_conditions::NamedTuple, cache)
 
     neighbor_ids = CuArray{Int}(cache.boundaries.neighbor_ids)
     neighbor_sides = CuArray{Int}(cache.boundaries.neighbor_sides)
@@ -440,7 +442,7 @@ end =#
 function cuda_boundary_flux!(t, mesh::TreeMesh{1}, boundary_condition::BoundaryConditionPeriodic,
     equations, dg::DGSEM, cache)
 
-    @assert isequal(length(cache.boundaries.orientations), 1)
+    @assert isequal(length(cache.boundaries.orientations), 0)
 end
 
 # Launch CUDA kernels to calculate boundary fluxes

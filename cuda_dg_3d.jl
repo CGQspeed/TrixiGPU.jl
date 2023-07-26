@@ -407,13 +407,15 @@ function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_side
 end
 
 # Assert 
-function cuda_prolong2boundaries!(u, mesh::TreeMesh{3}, cache)
+function cuda_prolong2boundaries!(u, mesh::TreeMesh{3},
+    boundary_condition::BoundaryConditionPeriodic, cache)
 
-    @assert isequal(length(cache.boundaries.orientations), 1)
+    @assert isequal(length(cache.boundaries.orientations), 0)
 end
 
 # Launch CUDA kernel to prolong solution to boundaries
-function cuda_prolong2boundaries!(u, mesh::TreeMesh{3}, cache)
+function cuda_prolong2boundaries!(u, mesh::TreeMesh{3},
+    boundary_conditions::NamedTuple, cache)
 
     neighbor_ids = CuArray{Int}(cache.boundaries.neighbor_ids)
     neighbor_sides = CuArray{Int}(cache.boundaries.neighbor_sides)
@@ -448,111 +450,10 @@ function last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
 end
 
 # CUDA kernel for calculating boundary fluxes on direction 1, 2, 3, 4, 5, 6
-function boundary_flux_kernel1!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{3}, surface_flux::Any)
-
-    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if (j <= size(surface_flux_values, 2)^2 && k <= length(boundary_arr))
-        j1 = div(j - 1, size(surface_flux_values, 2)) + 1
-        j2 = rem(j - 1, size(surface_flux_values, 2)) + 1
-
-        boundary = boundary_arr[k]
-
-        neighbor = neighbor_ids[boundary]
-        side = neighbor_sides[boundary]
-        orientation = orientations[boundary]
-
-        u_ll, u_rr = get_surface_node_vars(boundaries_u, equations, j1, j2, boundary)
-        u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
-        x = get_node_coords(node_coordinates, equations, j1, j2, boundary)
-
-        boundary_condition = boundary_conditions[1]
-        boundary_flux_node = boundary_condition(u_inner, orientation, 1, x, t, surface_flux, equations)
-
-        @inbounds begin
-            for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j1, j2, 1, neighbor] = boundary_flux_node[ii]
-            end
-        end
-    end
-
-    return nothing
-end
-
-function boundary_flux_kernel2!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{3}, surface_flux::Any)
-
-    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if (j <= size(surface_flux_values, 2)^2 && k <= length(boundary_arr))
-        j1 = div(j - 1, size(surface_flux_values, 2)) + 1
-        j2 = rem(j - 1, size(surface_flux_values, 2)) + 1
-
-        boundary = boundary_arr[k]
-
-        neighbor = neighbor_ids[boundary]
-        side = neighbor_sides[boundary]
-        orientation = orientations[boundary]
-
-        u_ll, u_rr = get_surface_node_vars(boundaries_u, equations, j1, j2, boundary)
-        u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
-        x = get_node_coords(node_coordinates, equations, j1, j2, boundary)
-
-        boundary_condition = boundary_conditions[2]
-        boundary_flux_node = boundary_condition(u_inner, orientation, 2, x, t, surface_flux, equations)
-
-        @inbounds begin
-            for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j1, j2, 2, neighbor] = boundary_flux_node[ii]
-            end
-        end
-    end
-
-    return nothing
-end
-
-function boundary_flux_kernel3!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{3}, surface_flux::Any)
-
-    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if (j <= size(surface_flux_values, 2)^2 && k <= length(boundary_arr))
-        j1 = div(j - 1, size(surface_flux_values, 2)) + 1
-        j2 = rem(j - 1, size(surface_flux_values, 2)) + 1
-
-        boundary = boundary_arr[k]
-
-        neighbor = neighbor_ids[boundary]
-        side = neighbor_sides[boundary]
-        orientation = orientations[boundary]
-
-        u_ll, u_rr = get_surface_node_vars(boundaries_u, equations, j1, j2, boundary)
-        u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
-        x = get_node_coords(node_coordinates, equations, j1, j2, boundary)
-
-        boundary_condition = boundary_conditions[3]
-        boundary_flux_node = boundary_condition(u_inner, orientation, 3, x, t, surface_flux, equations)
-
-        @inbounds begin
-            for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j1, j2, 3, neighbor] = boundary_flux_node[ii]
-            end
-        end
-    end
-
-    return nothing
-end
-
 function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{3}, surface_flux::Any)
+    boundary_arr, direction,
+    neighbor_ids, neighbor_sides, orientations,
+    boundary_condition::Any, equations::AbstractEquations{3}, surface_flux::Any)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -571,80 +472,11 @@ function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinat
         u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
         x = get_node_coords(node_coordinates, equations, j1, j2, boundary)
 
-        boundary_condition = boundary_conditions[4]
-        boundary_flux_node = boundary_condition(u_inner, orientation, 4, x, t, surface_flux, equations)
+        boundary_flux_node = boundary_condition(u_inner, orientation, direction, x, t, surface_flux, equations)
 
         @inbounds begin
             for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j1, j2, 4, neighbor] = boundary_flux_node[ii]
-            end
-        end
-    end
-
-    return nothing
-end
-
-function boundary_flux_kernel5!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{3}, surface_flux::Any)
-
-    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if (j <= size(surface_flux_values, 2)^2 && k <= length(boundary_arr))
-        j1 = div(j - 1, size(surface_flux_values, 2)) + 1
-        j2 = rem(j - 1, size(surface_flux_values, 2)) + 1
-
-        boundary = boundary_arr[k]
-
-        neighbor = neighbor_ids[boundary]
-        side = neighbor_sides[boundary]
-        orientation = orientations[boundary]
-
-        u_ll, u_rr = get_surface_node_vars(boundaries_u, equations, j1, j2, boundary)
-        u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
-        x = get_node_coords(node_coordinates, equations, j1, j2, boundary)
-
-        boundary_condition = boundary_conditions[5]
-        boundary_flux_node = boundary_condition(u_inner, orientation, 5, x, t, surface_flux, equations)
-
-        @inbounds begin
-            for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j1, j2, 5, neighbor] = boundary_flux_node[ii]
-            end
-        end
-    end
-
-    return nothing
-end
-
-function boundary_flux_kernel6!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{3}, surface_flux::Any)
-
-    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if (j <= size(surface_flux_values, 2)^2 && k <= length(boundary_arr))
-        j1 = div(j - 1, size(surface_flux_values, 2)) + 1
-        j2 = rem(j - 1, size(surface_flux_values, 2)) + 1
-
-        boundary = boundary_arr[k]
-
-        neighbor = neighbor_ids[boundary]
-        side = neighbor_sides[boundary]
-        orientation = orientations[boundary]
-
-        u_ll, u_rr = get_surface_node_vars(boundaries_u, equations, j1, j2, boundary)
-        u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
-        x = get_node_coords(node_coordinates, equations, j1, j2, boundary)
-
-        boundary_condition = boundary_conditions[6]
-        boundary_flux_node = boundary_condition(u_inner, orientation, 6, x, t, surface_flux, equations)
-
-        @inbounds begin
-            for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j1, j2, 6, neighbor] = boundary_flux_node[ii]
+                surface_flux_values[ii, j1, j2, direction, neighbor] = boundary_flux_node[ii]
             end
         end
     end
@@ -696,7 +528,7 @@ end =#
 function cuda_boundary_flux!(t, mesh::TreeMesh{3}, boundary_condition::BoundaryConditionPeriodic,
     equations, dg::DGSEM, cache)
 
-    @assert isequal(length(cache.boundaries.orientations), 1)
+    @assert isequal(length(cache.boundaries.orientations), 0)
 end
 
 # Launch CUDA kernels to calculate boundary fluxes

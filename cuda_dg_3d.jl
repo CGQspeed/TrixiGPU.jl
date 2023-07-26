@@ -1,5 +1,5 @@
 # Remove it after first run to avoid recompilation
-include("header.jl")
+#= include("header.jl") =#
 
 # Use the target test header file
 #= include("test/advection_basic_3d.jl") =#
@@ -553,47 +553,59 @@ function cuda_boundary_flux!(t, mesh::TreeMesh{3}, boundary_conditions::NamedTup
     boundary_arr3, boundary_arr4 = CuArray{Int}(firsts[3]:lasts[3]), CuArray{Int}(firsts[4]:lasts[4])
     boundary_arr5, boundary_arr6 = CuArray{Int}(firsts[5]:lasts[5]), CuArray{Int}(firsts[6]:lasts[6])
 
-    size_arr = CuArray{Float32}(undef, length(boundary_arr1))
+    if boundary_conditions[1] != boundary_condition_periodic
+        size_arr = CuArray{Float32}(undef, length(boundary_arr1))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr1, 1, neighbor_ids, neighbor_sides, orientations, boundary_conditions[1], equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr1, 1, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions[1], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+        boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+            boundary_arr1, 1, neighbor_ids, neighbor_sides, orientations, boundary_conditions[1], equations, surface_flux)
+        boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr1, 1, neighbor_ids, neighbor_sides,
+            orientations, boundary_conditions[1], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+    end
 
-    size_arr = CuArray{Float32}(undef, length(boundary_arr2))
+    if boundary_conditions[2] != boundary_condition_periodic
+        size_arr = CuArray{Float32}(undef, length(boundary_arr2))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr2, 2, neighbor_ids, neighbor_sides, orientations, boundary_conditions[2], equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr2, 2, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions[2], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+        boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+            boundary_arr2, 2, neighbor_ids, neighbor_sides, orientations, boundary_conditions[2], equations, surface_flux)
+        boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr2, 2, neighbor_ids, neighbor_sides,
+            orientations, boundary_conditions[2], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+    end
 
-    size_arr = CuArray{Float32}(undef, length(boundary_arr3))
+    if boundary_conditions[3] != boundary_condition_periodic
+        size_arr = CuArray{Float32}(undef, length(boundary_arr3))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr3, 3, neighbor_ids, neighbor_sides, orientations, boundary_conditions[3], equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr3, 3, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions[3], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+        boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+            boundary_arr3, 3, neighbor_ids, neighbor_sides, orientations, boundary_conditions[3], equations, surface_flux)
+        boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr3, 3, neighbor_ids, neighbor_sides,
+            orientations, boundary_conditions[3], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+    end
 
-    size_arr = CuArray{Float32}(undef, length(boundary_arr4))
+    if boundary_conditions[4] != boundary_condition_periodic
+        size_arr = CuArray{Float32}(undef, length(boundary_arr4))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr4, 4, neighbor_ids, neighbor_sides, orientations, boundary_conditions[4], equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr4, 4, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions[4], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+        boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+            boundary_arr4, 4, neighbor_ids, neighbor_sides, orientations, boundary_conditions[4], equations, surface_flux)
+        boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr4, 4, neighbor_ids, neighbor_sides,
+            orientations, boundary_conditions[4], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+    end
 
-    size_arr = CuArray{Float32}(undef, length(boundary_arr5))
+    if boundary_conditions[5] != boundary_condition_periodic
+        size_arr = CuArray{Float32}(undef, length(boundary_arr5))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr5, 5, neighbor_ids, neighbor_sides, orientations, boundary_conditions[5], equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr5, 5, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions[5], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+        boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+            boundary_arr5, 5, neighbor_ids, neighbor_sides, orientations, boundary_conditions[5], equations, surface_flux)
+        boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr5, 5, neighbor_ids, neighbor_sides,
+            orientations, boundary_conditions[5], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+    end
 
-    size_arr = CuArray{Float32}(undef, length(boundary_arr6))
+    if boundary_conditions[6] != boundary_condition_periodic
+        size_arr = CuArray{Float32}(undef, length(boundary_arr6))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr6, 6, neighbor_ids, neighbor_sides, orientations, boundary_conditions[6], equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr6, 6, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions[6], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+        boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+            boundary_arr6, 6, neighbor_ids, neighbor_sides, orientations, boundary_conditions[6], equations, surface_flux)
+        boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr6, 6, neighbor_ids, neighbor_sides,
+            orientations, boundary_conditions[6], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
+    end
 
     cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
 
@@ -779,10 +791,8 @@ cuda_interface_flux!(
 cuda_prolong2boundaries!(u, mesh,
     boundary_conditions, cache)
 
-
 cuda_boundary_flux!(t, mesh, boundary_conditions,
     equations, solver, cache)
-
 
 #= try
     cuda_boundary_flux!(t, mesh, boundary_conditions,

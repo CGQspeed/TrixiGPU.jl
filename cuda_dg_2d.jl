@@ -1,9 +1,6 @@
 # Remove it after first run to avoid recompilation
 #= include("header.jl") =#
 
-# Set random seed for random tests
-Random.seed!(123)
-
 # Use the target test header file
 #= include("test/advection_basic_2d.jl") =#
 #= include("test/euler_ec_2d.jl") =#
@@ -841,7 +838,8 @@ cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
     equations, solver, cache,)
 
-cuda_prolong2boundaries!(u, mesh, cache)
+cuda_prolong2boundaries!(u, mesh,
+    boundary_conditions, cache)
 
 @benchmark begin
     cuda_boundary_flux!(t, mesh, boundary_conditions,

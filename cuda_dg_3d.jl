@@ -1,8 +1,5 @@
 # Remove it after first run to avoid recompilation
-#= include("header.jl") =#
-
-# Set random seed for random tests
-Random.seed!(123)
+include("header.jl")
 
 # Use the target test header file
 #= include("test/advection_basic_3d.jl") =#
@@ -558,45 +555,45 @@ function cuda_boundary_flux!(t, mesh::TreeMesh{3}, boundary_conditions::NamedTup
 
     size_arr = CuArray{Float32}(undef, length(boundary_arr1))
 
-    boundary_flux_kernel1 = @cuda launch = false boundary_flux_kernel1!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr1, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel1(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr1, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel1, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+        boundary_arr1, 1, neighbor_ids, neighbor_sides, orientations, boundary_conditions[1], equations, surface_flux)
+    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr1, 1, neighbor_ids, neighbor_sides,
+        orientations, boundary_conditions[1], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
 
     size_arr = CuArray{Float32}(undef, length(boundary_arr2))
 
-    boundary_flux_kernel2 = @cuda launch = false boundary_flux_kernel2!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr2, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel2(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr2, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel2, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+        boundary_arr2, 2, neighbor_ids, neighbor_sides, orientations, boundary_conditions[2], equations, surface_flux)
+    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr2, 2, neighbor_ids, neighbor_sides,
+        orientations, boundary_conditions[2], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
 
     size_arr = CuArray{Float32}(undef, length(boundary_arr3))
 
-    boundary_flux_kernel3 = @cuda launch = false boundary_flux_kernel3!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr3, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel3(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr3, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel3, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+        boundary_arr3, 3, neighbor_ids, neighbor_sides, orientations, boundary_conditions[3], equations, surface_flux)
+    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr3, 3, neighbor_ids, neighbor_sides,
+        orientations, boundary_conditions[3], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
 
     size_arr = CuArray{Float32}(undef, length(boundary_arr4))
 
-    boundary_flux_kernel4 = @cuda launch = false boundary_flux_kernel4!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr4, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel4(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr4, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel4, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+        boundary_arr4, 4, neighbor_ids, neighbor_sides, orientations, boundary_conditions[4], equations, surface_flux)
+    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr4, 4, neighbor_ids, neighbor_sides,
+        orientations, boundary_conditions[4], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
 
     size_arr = CuArray{Float32}(undef, length(boundary_arr5))
 
-    boundary_flux_kernel5 = @cuda launch = false boundary_flux_kernel5!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr5, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel5(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr5, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel5, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+        boundary_arr5, 5, neighbor_ids, neighbor_sides, orientations, boundary_conditions[5], equations, surface_flux)
+    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr5, 5, neighbor_ids, neighbor_sides,
+        orientations, boundary_conditions[5], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
 
     size_arr = CuArray{Float32}(undef, length(boundary_arr6))
 
-    boundary_flux_kernel6 = @cuda launch = false boundary_flux_kernel6!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr6, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel6(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr6, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel6, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+        boundary_arr6, 6, neighbor_ids, neighbor_sides, orientations, boundary_conditions[6], equations, surface_flux)
+    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr6, 6, neighbor_ids, neighbor_sides,
+        orientations, boundary_conditions[6], equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
 
     cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
 
@@ -779,12 +776,13 @@ cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
     equations, solver, cache,)
 
-cuda_prolong2boundaries!(u, mesh, cache)
+cuda_prolong2boundaries!(u, mesh,
+    boundary_conditions, cache)
 
-@benchmark begin
-    cuda_boundary_flux!(t, mesh, boundary_conditions,
-        equations, solver, cache)
-end
+
+cuda_boundary_flux!(t, mesh, boundary_conditions,
+    equations, solver, cache)
+
 
 #= try
     cuda_boundary_flux!(t, mesh, boundary_conditions,

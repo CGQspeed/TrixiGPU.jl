@@ -2,10 +2,10 @@
 #= include("header.jl") =#
 
 # Use the target test header file
-#= include("test/advection_basic_1d.jl") =#
-#= include("test/euler_ec_1d.jl") =#
-#= include("test/euler_source_terms_1d.jl") =#
-include("test/hypdiff_harmonic_nonperiodic_1d.jl")
+#= include("tests/advection_basic_1d.jl") =#
+#= include("tests/euler_ec_1d.jl") =#
+#= include("tests/euler_source_terms_1d.jl") =#
+include("tests/hypdiff_nonperiodic_1d.jl")
 
 # Kernel configurators 
 #################################################################################

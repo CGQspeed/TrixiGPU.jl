@@ -2,10 +2,10 @@
 #= include("header.jl") =#
 
 # Use the target test header file
-#= include("test/advection_basic_2d.jl") =#
-#= include("test/euler_ec_2d.jl") =#
-#= include("test/euler_source_terms_2d.jl") =#
-include("test/hypdiff_harmonic_nonperiodic_2d.jl")
+#= include("tests/advection_basic_2d.jl") =#
+#= include("tests/euler_ec_2d.jl") =#
+#= include("tests/euler_source_terms_2d.jl") =#
+include("tests/hypdiff_nonperiodic_2d.jl")
 
 # Kernel configurators 
 #################################################################################
@@ -425,48 +425,15 @@ end
 
 # CUDA kernel for calculating boundary fluxes in direction 1, 2, 3, 4
 function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, direction,
+    boundaries, indices_arr, boundary_arr,
     neighbor_ids, neighbor_sides, orientations,
     boundary_conditions::NamedTuple, equations::AbstractEquations{2}, surface_flux::Any)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-    if (j <= size(surface_flux_values, 2) && k <= length(boundary_arr))
-        boundary = boundary_arr[k]
-
-        neighbor = neighbor_ids[boundary]
-        side = neighbor_sides[boundary]
-        orientation = orientations[boundary]
-
-        u_ll, u_rr = get_surface_node_vars(boundaries_u, equations, j, boundary)
-        u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
-        x = get_node_coords(node_coordinates, equations, j, boundary)
-
-        boundary_condition = boundary_conditions[direction]
-        boundary_flux_node = boundary_condition(u_inner, orientation, direction, x, t, surface_flux, equations)
-
-        @inbounds begin
-            for ii in axes(surface_flux_values, 1)
-                surface_flux_values[ii, j, direction, neighbor] = boundary_flux_node[ii]
-            end
-        end
-    end
-
-    return nothing
-end
-
-############### Issue #6
-#= function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, indices_arr,
-    neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{2}, surface_flux::Any)
-
-    j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if (j <= size(surface_flux_values, 2) && k <= length(boundary_arr))
-        boundary = boundary_arr[k]
+    boundary = boundaries[k]
+    if (j <= size(surface_flux_values, 2) && boundary in boundary_arr)
         direction =
             (indices_arr[1] <= boundary) + (indices_arr[2] <= boundary) +
             (indices_arr[3] <= boundary) + (indices_arr[4] <= boundary)
@@ -490,7 +457,7 @@ end
     end
 
     return nothing
-end =#
+end
 
 # Assert 
 function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_condition::BoundaryConditionPeriodic,
@@ -520,65 +487,12 @@ function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_conditions::NamedTup
     last_first_indices_kernel(lasts, firsts, n_boundaries_per_direction; configurator_1d(last_first_indices_kernel, lasts)...)
 
     lasts, firsts = Array(lasts), Array(firsts)
-    boundary_arr1, boundary_arr2 = CuArray{Int}(firsts[1]:lasts[1]), CuArray{Int}(firsts[2]:lasts[2])
-    boundary_arr3, boundary_arr4 = CuArray{Int}(firsts[3]:lasts[3]), CuArray{Int}(firsts[4]:lasts[4])
-
-    size_arr = CuArray{Float32}(undef, length(boundary_arr1))
-
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr1, 1, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr1, 1, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
-
-    size_arr = CuArray{Float32}(undef, length(boundary_arr2))
-
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr2, 2, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr2, 2, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
-
-    size_arr = CuArray{Float32}(undef, length(boundary_arr3))
-
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr3, 3, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr3, 3, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
-
-    size_arr = CuArray{Float32}(undef, length(boundary_arr4))
-
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr4, 4, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr4, 4, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_1d(boundary_flux_kernel, size_arr)...)
-
-    cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
-
-    return nothing
-end
-
-############### Issue #6
-#= function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_conditions::NamedTuple,
-    equations, dg::DGSEM, cache)
-
-    surface_flux = dg.surface_integral.surface_flux
-
-    n_boundaries_per_direction = CuArray{Int}(cache.boundaries.n_boundaries_per_direction)
-    neighbor_ids = CuArray{Int}(cache.boundaries.neighbor_ids)
-    neighbor_sides = CuArray{Int}(cache.boundaries.neighbor_sides)
-    orientations = CuArray{Int}(cache.boundaries.orientations)
-    boundaries_u = CuArray{Float32}(cache.boundaries.u)
-    node_coordinates = CuArray{Float32}(cache.boundaries.node_coordinates)
-    surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
-
-    lasts = CUDA.zeros(Int, length(n_boundaries_per_direction))
-    firsts = CUDA.zeros(Int, length(n_boundaries_per_direction))
-
-    last_first_indices_kernel = @cuda launch = false last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
-    last_first_indices_kernel(lasts, firsts, n_boundaries_per_direction; configurator_1d(last_first_indices_kernel, lasts)...)
-
-    lasts, firsts = Array(lasts), Array(firsts)
     boundary_arr = CuArray{Int}(firsts[1]:lasts[4])
     indices_arr = CuArray{Int}([firsts[1], firsts[2], firsts[3], firsts[4]])
+    matching_indices = [i for (i, boundary_condition) in enumerate(collect(values(boundary_conditions)))
+                        if boundary_condition != boundary_condition_periodic]
+    boundary_indices_temp = [firsts[i]:lasts[i] for i in matching_indices]
+    boundary_indices = vcat(boundary_indices_temp...)
 
     size_arr = CuArray{Float32}(undef, size(surface_flux_values, 2), length(boundary_arr))
 
@@ -590,7 +504,7 @@ end
     cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
 
     return nothing
-end =#
+end
 
 # CUDA kernel for calculating surface integrals along axis x, y
 function surface_integral_kernel!(du, factor_arr, surface_flux_values)
@@ -790,7 +704,11 @@ function rhs_gpu!(du, u, t, mesh::TreeMesh{2}, equations,
         mesh, have_nonconservative_terms(equations),
         equations, dg, cache,)
 
-    #= cuda_prolong2boundaries!(u, mesh, cache) =#
+    cuda_prolong2boundaries!(u, mesh,
+        boundary_conditions, cache)
+
+    cuda_boundary_flux!(t, mesh, boundary_conditions,
+        equations, dg, cache)
 
     cuda_surface_integral!(du, mesh, dg, cache)
 
@@ -841,12 +759,42 @@ cuda_interface_flux!(
 cuda_prolong2boundaries!(u, mesh,
     boundary_conditions, cache)
 
-@benchmark begin
-    cuda_boundary_flux!(t, mesh, boundary_conditions,
-        equations, solver, cache)
-end
+surface_flux = solver.surface_integral.surface_flux
 
-#= cuda_surface_integral!(du, mesh, solver, cache)
+n_boundaries_per_direction = CuArray{Int}(cache.boundaries.n_boundaries_per_direction)
+neighbor_ids = CuArray{Int}(cache.boundaries.neighbor_ids)
+neighbor_sides = CuArray{Int}(cache.boundaries.neighbor_sides)
+orientations = CuArray{Int}(cache.boundaries.orientations)
+boundaries_u = CuArray{Float32}(cache.boundaries.u)
+node_coordinates = CuArray{Float32}(cache.boundaries.node_coordinates)
+surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
+
+lasts = CUDA.zeros(Int, length(n_boundaries_per_direction))
+firsts = CUDA.zeros(Int, length(n_boundaries_per_direction))
+
+last_first_indices_kernel = @cuda launch = false last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
+last_first_indices_kernel(lasts, firsts, n_boundaries_per_direction; configurator_1d(last_first_indices_kernel, lasts)...)
+
+lasts, firsts = Array(lasts), Array(firsts)
+boundaries = CuArray{Int}(firsts[1]:lasts[4])
+indices_arr = CuArray{Int}([firsts[1], firsts[2], firsts[3], firsts[4]])
+matching_indices = [i for (i, boundary_condition) in enumerate(collect(values(boundary_conditions)))
+                    if boundary_condition != boundary_condition_periodic]
+boundary_arr_temp = [firsts[i]:lasts[i] for i in matching_indices]
+boundary_arr = CuArray{Int}(vcat(boundary_arr_temp...))
+
+size_arr = CuArray{Float32}(undef, size(surface_flux_values, 2), length(boundaries))
+
+boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
+    boundaries, indices_arr, boundary_arr, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
+boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundaries, indices_arr, boundary_arr, neighbor_ids, neighbor_sides,
+    orientations, boundary_conditions, equations, surface_flux; configurator_2d(boundary_flux_kernel, size_arr)...)
+
+
+#= cuda_boundary_flux!(t, mesh, boundary_conditions,
+    equations, solver, cache)
+
+cuda_surface_integral!(du, mesh, solver, cache)
 
 cuda_jacobian!(du, mesh, cache)
 
@@ -876,9 +824,9 @@ prolong2boundaries!(cache, u, mesh, equations,
     solver.surface_integral, solver)
 
 calc_boundary_flux!(cache, t, boundary_conditions, mesh, equations,
-    solver.surface_integral, solver) =#
+    solver.surface_integral, solver)
 
-#= calc_surface_integral!(
+calc_surface_integral!(
     du, u, mesh, equations, solver.surface_integral, solver, cache)
 
 apply_jacobian!(du, mesh, equations, solver, cache)

@@ -5,7 +5,7 @@
 #= include("tests/advection_basic_1d.jl") =#
 #= include("tests/euler_ec_1d.jl") =#
 #= include("tests/euler_source_terms_1d.jl") =#
-include("tests/hypdiff_harmonic_nonperiodic_1d.jl")
+#= include("tests/hypdiff_nonperiodic_1d.jl") =#
 
 # Kernel configurators 
 #################################################################################

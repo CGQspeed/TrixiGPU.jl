@@ -2,10 +2,11 @@
 #= include("header.jl") =#
 
 # Use the target test header file
-include("tests/advection_basic_2d.jl")
+#= include("tests/advection_basic_2d.jl") =#
 #= include("tests/euler_ec_2d.jl") =#
 #= include("tests/euler_source_terms_2d.jl") =#
-#= include("tests/hypdiff_harmonic_nonperiodic_2d.jl") =#
+#= include("tests/hypdiff_nonperiodic_2d.jl") =#
+include("tests/euler_vortex_2d.jl")
 
 # Kernel configurators 
 #################################################################################
@@ -683,11 +684,11 @@ end
 
 # Pack kernels into `rhs_gpu!()`
 #################################################################################
-function rhs_gpu!(du, u, t, mesh::TreeMesh{2}, equations,
+function rhs_gpu!(du_cpu, u_cpu, t, mesh::TreeMesh{2}, equations,
     initial_condition, boundary_conditions, source_terms::Source,
     dg::DGSEM, cache) where {Source}
 
-    du, u = copy_to_gpu!(du, u)
+    du, u = copy_to_gpu!(du_cpu, u_cpu)
 
     cuda_volume_integral!(
         du, u, mesh,
@@ -713,7 +714,8 @@ function rhs_gpu!(du, u, t, mesh::TreeMesh{2}, equations,
     cuda_sources!(du, u, t,
         source_terms, equations, cache)
 
-    du, u = copy_to_cpu!(du, u)
+    du_computed, _ = copy_to_cpu!(du, u)
+    du_cpu .= du_computed
 
     return nothing
 end

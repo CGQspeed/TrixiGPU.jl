@@ -1,5 +1,4 @@
-#= include("../cuda_dg_2d.jl") =#
-
+# The header part for testing basic kernels in 2D
 equations = CompressibleEulerEquations2D(1.4)
 
 function initial_condition_isentropic_vortex(x, t, equations::CompressibleEulerEquations2D)
@@ -42,22 +41,13 @@ mesh = TreeMesh(coordinates_min, coordinates_max,
 
 semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition, solver)
 
+@unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
+
+t = 0.0
 tspan = (0.0, 20.0)
 
-# Run on CPU
-#################################################################################
-ode_cpu = semidiscretize_cpu(semi, tspan)
-
-sol_cpu = OrdinaryDiffEq.solve(ode_cpu, RDPK3SpFSAL49();
-    abstol=1.0e-6, reltol=1.0e-6, ode_default_options()...)
-
-# Run on GPU
-#################################################################################
-ode_gpu = semidiscretize_gpu(semi, tspan)
-
-sol_gpu = OrdinaryDiffEq.solve(ode_gpu, RDPK3SpFSAL49();
-    abstol=1.0e-6, reltol=1.0e-6, ode_default_options()...)
-
-# Compare results
-################################################################################
-extrema(sol_cpu.u[end] - sol_gpu.u[end])
+ode = semidiscretize(semi, tspan)
+u_ode = copy(ode.u0)
+du_ode = similar(u_ode)
+u = wrap_array(u_ode, mesh, equations, solver, cache)
+du = wrap_array(du_ode, mesh, equations, solver, cache)

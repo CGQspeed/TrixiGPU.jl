@@ -5,7 +5,7 @@
 #= include("tests/advection_basic_3d.jl") =#
 #= include("tests/euler_ec_3d.jl") =#
 #= include("tests/euler_source_terms_3d.jl") =#
-include("tests/hypdiff_nonperiodic_3d.jl")
+#= include("tests/hypdiff_nonperiodic_3d.jl") =#
 
 # Kernel configurators 
 #################################################################################
@@ -675,21 +675,14 @@ cuda_prolong2boundaries!(u, mesh,
 cuda_boundary_flux!(t, mesh, boundary_conditions,
     equations, solver, cache)
 
-#= try
-    cuda_boundary_flux!(t, mesh, boundary_conditions,
-        equations, solver, cache)
-catch err
-    code_typed(err; interactive=true)
-end =#
-
-#= cuda_surface_integral!(du, mesh, solver, cache)
+cuda_surface_integral!(du, mesh, solver, cache)
 
 cuda_jacobian!(du, mesh, cache)
 
 cuda_sources!(du, u, t,
     source_terms, equations, cache)
 
-du, u = copy_to_cpu!(du, u) =#
+du, u = copy_to_cpu!(du, u)
 
 
 

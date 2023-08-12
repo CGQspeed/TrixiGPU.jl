@@ -246,7 +246,7 @@ end
 
 # Launch CUDA kernels to calculate volume integrals
 function cuda_volume_integral!(du, u, mesh::TreeMesh{1},
-    nonconservative_terms::False, equations,
+    nonconservative_terms, equations,
     volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
 
     derivative_dhat = CuArray{Float64}(dg.basis.derivative_dhat)

@@ -898,7 +898,7 @@ end
 
 # For tests
 #################################################################################
-du, u = copy_to_gpu!(du, u)
+#= du, u = copy_to_gpu!(du, u)
 
 cuda_volume_integral!(
     du, u, mesh,
@@ -917,7 +917,7 @@ cuda_prolong2boundaries!(u, mesh,
 cuda_boundary_flux!(t, mesh, boundary_conditions,
     equations, solver, cache)
 
-#= cuda_surface_integral!(du, mesh, solver, cache)
+cuda_surface_integral!(du, mesh, solver, cache)
 
 cuda_jacobian!(du, mesh, cache)
 
@@ -947,9 +947,9 @@ prolong2boundaries!(cache, u, mesh, equations,
     solver.surface_integral, solver)
 
 cuda_boundary_flux!(t, mesh, boundary_conditions,
-    equations, solver, cache) =#
+    equations, solver, cache)
 
-#= calc_surface_integral!(
+calc_surface_integral!(
     du, u, mesh, equations, solver.surface_integral, solver, cache)
 
 apply_jacobian!(du, mesh, equations, solver, cache)

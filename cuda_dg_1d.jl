@@ -6,7 +6,7 @@
 #= include("tests/euler_ec_1d.jl") =#
 #= include("tests/euler_source_terms_1d.jl") =#
 #= include("tests/hypdiff_nonperiodic_1d.jl") =#
-include("tests/shallowwater_well_balanced_1d.jl")
+#= include("tests/shallowwater_well_balanced_1d.jl") =#
 
 # Kernel configurators 
 #################################################################################
@@ -651,14 +651,14 @@ end
 
 # For tests
 #################################################################################
-du, u = copy_to_gpu!(du, u)
+#= du, u = copy_to_gpu!(du, u)
 
 cuda_volume_integral!(
     du, u, mesh,
     have_nonconservative_terms(equations), equations,
     solver.volume_integral, solver)
 
-#= cuda_prolong2interfaces!(u, mesh, cache)
+cuda_prolong2interfaces!(u, mesh, cache)
 
 cuda_interface_flux!(
     mesh, have_nonconservative_terms(equations),
@@ -686,9 +686,9 @@ du, u = copy_to_cpu!(du, u) =#
 calc_volume_integral!(
     du, u, mesh,
     have_nonconservative_terms(equations), equations,
-    solver.volume_integral, solver, cache) =#
+    solver.volume_integral, solver, cache)
 
-#= prolong2interfaces!(
+prolong2interfaces!(
     cache, u, mesh, equations, solver.surface_integral, solver)
 
 calc_interface_flux!(

@@ -11,14 +11,14 @@ using CUDA, Test
 
 # 1D block 
 function gpu_add1!(y, x)
-	index = threadIdx().x
-	stride = blockDim().x
+    index = threadIdx().x
+    stride = blockDim().x
 
-	for i ∈ index:stride:length(y)
-		@inbounds y[i] += x[i]
-	end
+    for i ∈ index:stride:length(y)
+        @inbounds y[i] += x[i]
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^20
@@ -29,14 +29,14 @@ y = CUDA.fill(2.0f0, N)
 
 # 1D grid
 function gpu_add2!(y, x)
-	index = blockIdx().x
-	stride = gridDim().x
+    index = blockIdx().x
+    stride = gridDim().x
 
-	for i ∈ index:stride:length(y)
-		@inbounds y[i] += x[i]
-	end
+    for i ∈ index:stride:length(y)
+        @inbounds y[i] += x[i]
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^20
@@ -47,14 +47,14 @@ y = CUDA.fill(2.0f0, N)
 
 # 1D block, 1D grid
 function gpu_add3!(y, x)
-	index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-	stride = gridDim().x * blockDim().x
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = gridDim().x * blockDim().x
 
-	for i ∈ index:stride:length(y)
-		@inbounds y[i] += x[i]
-	end
+    for i ∈ index:stride:length(y)
+        @inbounds y[i] += x[i]
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^20
@@ -70,19 +70,19 @@ numblocks = ceil(Int, N / 256)
 
 # 2D block
 function gpu_add4!(y, x)
-	index_i = threadIdx().x
-	index_j = threadIdx().y
+    index_i = threadIdx().x
+    index_j = threadIdx().y
 
-	stride_i = blockDim().x
-	stride_j = blockDim().y
+    stride_i = blockDim().x
+    stride_j = blockDim().y
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			@inbounds y[i, j] += x[i, j]
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            @inbounds y[i, j] += x[i, j]
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^10
@@ -93,19 +93,19 @@ y = CUDA.zeros(N, N)
 
 # 2D block, 1D grid
 function gpu_add5!(y, x)
-	index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-	index_j = threadIdx().y
+    index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_j = threadIdx().y
 
-	stride_i = gridDim().x * blockDim().x
-	stride_j = blockDim().y
+    stride_i = gridDim().x * blockDim().x
+    stride_j = blockDim().y
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			@inbounds y[i, j] += x[i, j]
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            @inbounds y[i, j] += x[i, j]
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^10
@@ -117,19 +117,19 @@ numblocks = ceil(Int, N / 256)
 
 # 2D block, 2D grid
 function gpu_add6!(y, x)
-	index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-	index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-	stride_i = gridDim().x * blockDim().x
-	stride_j = gridDim().y * blockDim().y
+    stride_i = gridDim().x * blockDim().x
+    stride_j = gridDim().y * blockDim().y
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			@inbounds y[i, j] += x[i, j]
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            @inbounds y[i, j] += x[i, j]
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^10
@@ -146,23 +146,23 @@ numblocks = ceil(Int, N / 256)
 
 # 3D block
 function gpu_add7!(y, x)
-	index_i = threadIdx().x
-	index_j = threadIdx().y
-	index_k = threadIdx().z
+    index_i = threadIdx().x
+    index_j = threadIdx().y
+    index_k = threadIdx().z
 
-	stride_i = blockDim().x
-	stride_j = blockDim().y
-	stride_k = blockDim().z
+    stride_i = blockDim().x
+    stride_j = blockDim().y
+    stride_k = blockDim().z
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			for k ∈ index_k:stride_k:size(y, 3)
-				@inbounds y[i, j, k] += x[i, j, k]
-			end
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            for k ∈ index_k:stride_k:size(y, 3)
+                @inbounds y[i, j, k] += x[i, j, k]
+            end
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^8
@@ -173,23 +173,23 @@ y = CUDA.zeros(N, N, N)
 
 # 3D block, 1D grid
 function gpu_add8!(y, x)
-	index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-	index_j = threadIdx().y
-	index_k = threadIdx().z
+    index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_j = threadIdx().y
+    index_k = threadIdx().z
 
-	stride_i = gridDim().x * blockDim().x
-	stride_j = blockDim().y
-	stride_k = blockDim().z
+    stride_i = gridDim().x * blockDim().x
+    stride_j = blockDim().y
+    stride_k = blockDim().z
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			for k ∈ index_k:stride_k:size(y, 3)
-				@inbounds y[i, j, k] += x[i, j, k]
-			end
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            for k ∈ index_k:stride_k:size(y, 3)
+                @inbounds y[i, j, k] += x[i, j, k]
+            end
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^8
@@ -200,23 +200,23 @@ y = CUDA.zeros(N, N, N)
 
 # 3D block, 2D grid
 function gpu_add9!(y, x)
-	index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-	index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-	index_k = threadIdx().z
+    index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    index_k = threadIdx().z
 
-	stride_i = gridDim().x * blockDim().x
-	stride_j = gridDim().y * blockDim().y
-	stride_k = blockDim().z
+    stride_i = gridDim().x * blockDim().x
+    stride_j = gridDim().y * blockDim().y
+    stride_k = blockDim().z
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			for k ∈ index_k:stride_k:size(y, 3)
-				@inbounds y[i, j, k] += x[i, j, k]
-			end
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            for k ∈ index_k:stride_k:size(y, 3)
+                @inbounds y[i, j, k] += x[i, j, k]
+            end
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^8
@@ -227,23 +227,23 @@ y = CUDA.zeros(N, N, N)
 
 # 3D block, 3D grid
 function gpu_add10!(y, x)
-	index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-	index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-	index_k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+    index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    index_k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
-	stride_i = gridDim().x * blockDim().x
-	stride_j = gridDim().y * blockDim().y
-	stride_k = gridDim().z * blockDim().z
+    stride_i = gridDim().x * blockDim().x
+    stride_j = gridDim().y * blockDim().y
+    stride_k = gridDim().z * blockDim().z
 
-	for i ∈ index_i:stride_i:size(y, 1)
-		for j ∈ index_j:stride_j:size(y, 2)
-			for k ∈ index_k:stride_k:size(y, 3)
-				@inbounds y[i, j, k] += x[i, j, k]
-			end
-		end
-	end
+    for i ∈ index_i:stride_i:size(y, 1)
+        for j ∈ index_j:stride_j:size(y, 2)
+            for k ∈ index_k:stride_k:size(y, 3)
+                @inbounds y[i, j, k] += x[i, j, k]
+            end
+        end
+    end
 
-	return nothing
+    return nothing
 end
 
 N = 2^8

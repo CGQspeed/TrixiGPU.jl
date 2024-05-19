@@ -19,27 +19,29 @@ function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{<:Any,1})
     threads = min(length(array), config.threads)
     blocks = cld(length(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # CUDA kernel configurator for 2D array computing
 function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{<:Any,2})
     config = launch_configuration(kernel.fun)
 
-    threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
+    threads =
+        Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
     blocks = map(cld, size(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # CUDA kernel configurator for 3D array computing
 function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{<:Any,3})
     config = launch_configuration(kernel.fun)
 
-    threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
+    threads =
+        Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
     blocks = map(cld, size(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # Helper functions
@@ -77,13 +79,28 @@ end
 end
 
 # Helper function for stable calls to `boundary_conditions`
-@generated function boundary_stable_helper(boundary_conditions, u_inner, orientation, direction,
-    x, t, surface_flux, equations)
+@generated function boundary_stable_helper(
+    boundary_conditions,
+    u_inner,
+    orientation,
+    direction,
+    x,
+    t,
+    surface_flux,
+    equations,
+)
 
     n = length(boundary_conditions.parameters)
     quote
-        @nif $n d -> d == direction d -> return boundary_conditions[d](u_inner, orientation, direction,
-            x, t, surface_flux, equations)
+        @nif $n d -> d == direction d -> return boundary_conditions[d](
+            u_inner,
+            orientation,
+            direction,
+            x,
+            t,
+            surface_flux,
+            equations,
+        )
     end
 end
 
@@ -109,8 +126,13 @@ function copy_to_cpu!(du, u)
 end
 
 # CUDA kernel for calculating fluxes along normal direction 1, 2
-function flux_kernel!(flux_arr1, flux_arr2, u,
-    equations::AbstractEquations{2}, flux::Function)
+function flux_kernel!(
+    flux_arr1,
+    flux_arr2,
+    u,
+    equations::AbstractEquations{2},
+    flux::Function,
+)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -158,8 +180,13 @@ function weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
 end
 
 # CUDA kernel for calculating volume fluxes in direction x, y
-function volume_flux_kernel!(volume_flux_arr1, volume_flux_arr2, u,
-    equations::AbstractEquations{2}, volume_flux::Function)
+function volume_flux_kernel!(
+    volume_flux_arr1,
+    volume_flux_arr2,
+    u,
+    equations::AbstractEquations{2},
+    volume_flux::Function,
+)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -188,10 +215,17 @@ function volume_flux_kernel!(volume_flux_arr1, volume_flux_arr2, u,
 end
 
 # CUDA kernel for calculating symmetric and nonsymmetric fluxes in direction x, y
-function symmetric_noncons_flux_kernel!(symmetric_flux_arr1, symmetric_flux_arr2,
-    noncons_flux_arr1, noncons_flux_arr2,
-    u, derivative_split,
-    equations::AbstractEquations{2}, symmetric_flux::Function, nonconservative_flux::Function)
+function symmetric_noncons_flux_kernel!(
+    symmetric_flux_arr1,
+    symmetric_flux_arr2,
+    noncons_flux_arr1,
+    noncons_flux_arr2,
+    u,
+    derivative_split,
+    equations::AbstractEquations{2},
+    symmetric_flux::Function,
+    nonconservative_flux::Function,
+)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -215,8 +249,10 @@ function symmetric_noncons_flux_kernel!(symmetric_flux_arr1, symmetric_flux_arr2
             for ii in axes(u, 1)
                 symmetric_flux_arr1[ii, j1, j3, j2, k] = symmetric_flux_node1[ii]
                 symmetric_flux_arr2[ii, j1, j2, j3, k] = symmetric_flux_node2[ii]
-                noncons_flux_arr1[ii, j1, j3, j2, k] = noncons_flux_node1[ii] * derivative_split[j1, j3]
-                noncons_flux_arr2[ii, j1, j2, j3, k] = noncons_flux_node2[ii] * derivative_split[j2, j3]
+                noncons_flux_arr1[ii, j1, j3, j2, k] =
+                    noncons_flux_node1[ii] * derivative_split[j1, j3]
+                noncons_flux_arr2[ii, j1, j2, j3, k] =
+                    noncons_flux_node2[ii] * derivative_split[j2, j3]
             end
         end
     end
@@ -237,8 +273,10 @@ function volume_integral_kernel!(du, derivative_split, volume_flux_arr1, volume_
 
         @inbounds begin
             for ii in axes(du, 2)
-                du[i, j1, j2, k] += derivative_split[j1, ii] * volume_flux_arr1[i, j1, ii, j2, k]
-                du[i, j1, j2, k] += derivative_split[j2, ii] * volume_flux_arr2[i, j1, j2, ii, k]
+                du[i, j1, j2, k] +=
+                    derivative_split[j1, ii] * volume_flux_arr1[i, j1, ii, j2, k]
+                du[i, j1, j2, k] +=
+                    derivative_split[j2, ii] * volume_flux_arr2[i, j1, j2, ii, k]
             end
         end
     end
@@ -247,9 +285,14 @@ function volume_integral_kernel!(du, derivative_split, volume_flux_arr1, volume_
 end
 
 # CUDA kernel for calculating symmetric and nonsymmetric volume integrals
-function symmetric_noncons_integral_kernel!(du, derivative_split,
-    symmetric_flux_arr1, symmetric_flux_arr2,
-    noncons_flux_arr1, noncons_flux_arr2)
+function symmetric_noncons_integral_kernel!(
+    du,
+    derivative_split,
+    symmetric_flux_arr1,
+    symmetric_flux_arr2,
+    noncons_flux_arr1,
+    noncons_flux_arr2,
+)
 
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -263,8 +306,10 @@ function symmetric_noncons_integral_kernel!(du, derivative_split,
             integral_contribution = 0.0
 
             for ii in axes(du, 2)
-                du[i, j1, j2, k] += derivative_split[j1, ii] * symmetric_flux_arr1[i, j1, ii, j2, k]
-                du[i, j1, j2, k] += derivative_split[j2, ii] * symmetric_flux_arr2[i, j1, j2, ii, k]
+                du[i, j1, j2, k] +=
+                    derivative_split[j1, ii] * symmetric_flux_arr1[i, j1, ii, j2, k]
+                du[i, j1, j2, k] +=
+                    derivative_split[j2, ii] * symmetric_flux_arr2[i, j1, j2, ii, k]
                 integral_contribution += noncons_flux_arr1[i, j1, ii, j2, k]
                 integral_contribution += noncons_flux_arr2[i, j1, j2, ii, k]
             end
@@ -277,9 +322,15 @@ function symmetric_noncons_integral_kernel!(du, derivative_split,
 end
 
 # Launch CUDA kernels to calculate volume integrals
-function cuda_volume_integral!(du, u, mesh::TreeMesh{2},
-    nonconservative_terms, equations,
-    volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
+function cuda_volume_integral!(
+    du,
+    u,
+    mesh::TreeMesh{2},
+    nonconservative_terms,
+    equations,
+    volume_integral::VolumeIntegralWeakForm,
+    dg::DGSEM,
+)
 
     derivative_dhat = CuArray{Float64}(dg.basis.derivative_dhat)
     flux_arr1 = similar(u)
@@ -287,67 +338,156 @@ function cuda_volume_integral!(du, u, mesh::TreeMesh{2},
 
     size_arr = CuArray{Float64}(undef, size(u, 2)^2, size(u, 4))
 
-    flux_kernel = @cuda launch = false flux_kernel!(flux_arr1, flux_arr2, u, equations, flux)
-    flux_kernel(flux_arr1, flux_arr2, u, equations; configurator_2d(flux_kernel, size_arr)...)
+    flux_kernel =
+        @cuda launch = false flux_kernel!(flux_arr1, flux_arr2, u, equations, flux)
+    flux_kernel(
+        flux_arr1,
+        flux_arr2,
+        u,
+        equations;
+        configurator_2d(flux_kernel, size_arr)...,
+    )
 
     size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
 
-    weak_form_kernel = @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
-    weak_form_kernel(du, derivative_dhat, flux_arr1, flux_arr2; configurator_3d(weak_form_kernel, size_arr)...)
+    weak_form_kernel =
+        @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
+    weak_form_kernel(
+        du,
+        derivative_dhat,
+        flux_arr1,
+        flux_arr2;
+        configurator_3d(weak_form_kernel, size_arr)...,
+    )
 
     return nothing
 end
 
 # Launch CUDA kernels to calculate volume integrals
-function cuda_volume_integral!(du, u, mesh::TreeMesh{2},
-    nonconservative_terms::False, equations,
-    volume_integral::VolumeIntegralFluxDifferencing, dg::DGSEM)
+function cuda_volume_integral!(
+    du,
+    u,
+    mesh::TreeMesh{2},
+    nonconservative_terms::False,
+    equations,
+    volume_integral::VolumeIntegralFluxDifferencing,
+    dg::DGSEM,
+)
 
     volume_flux = volume_integral.volume_flux
 
     derivative_split = CuArray{Float64}(dg.basis.derivative_split)
-    volume_flux_arr1 = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
-    volume_flux_arr2 = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
+    volume_flux_arr1 =
+        CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
+    volume_flux_arr2 =
+        CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
 
     size_arr = CuArray{Float64}(undef, size(u, 2)^3, size(u, 4))
 
-    volume_flux_kernel = @cuda launch = false volume_flux_kernel!(volume_flux_arr1, volume_flux_arr2, u, equations, volume_flux)
-    volume_flux_kernel(volume_flux_arr1, volume_flux_arr2, u, equations, volume_flux; configurator_2d(volume_flux_kernel, size_arr)...)
+    volume_flux_kernel = @cuda launch = false volume_flux_kernel!(
+        volume_flux_arr1,
+        volume_flux_arr2,
+        u,
+        equations,
+        volume_flux,
+    )
+    volume_flux_kernel(
+        volume_flux_arr1,
+        volume_flux_arr2,
+        u,
+        equations,
+        volume_flux;
+        configurator_2d(volume_flux_kernel, size_arr)...,
+    )
 
     size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
 
-    volume_integral_kernel = @cuda launch = false volume_integral_kernel!(du, derivative_split, volume_flux_arr1, volume_flux_arr2)
-    volume_integral_kernel(du, derivative_split, volume_flux_arr1, volume_flux_arr2; configurator_3d(volume_integral_kernel, size_arr)...)
+    volume_integral_kernel = @cuda launch = false volume_integral_kernel!(
+        du,
+        derivative_split,
+        volume_flux_arr1,
+        volume_flux_arr2,
+    )
+    volume_integral_kernel(
+        du,
+        derivative_split,
+        volume_flux_arr1,
+        volume_flux_arr2;
+        configurator_3d(volume_integral_kernel, size_arr)...,
+    )
 
     return nothing
 end
 
 # Launch CUDA kernels to calculate volume integrals
-function cuda_volume_integral!(du, u, mesh::TreeMesh{2},
-    nonconservative_terms::True, equations,
-    volume_integral::VolumeIntegralFluxDifferencing, dg::DGSEM)
+function cuda_volume_integral!(
+    du,
+    u,
+    mesh::TreeMesh{2},
+    nonconservative_terms::True,
+    equations,
+    volume_integral::VolumeIntegralFluxDifferencing,
+    dg::DGSEM,
+)
 
     symmetric_flux, nonconservative_flux = dg.volume_integral.volume_flux
 
     derivative_split = CuArray{Float64}(dg.basis.derivative_split)
-    symmetric_flux_arr1 = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
-    symmetric_flux_arr2 = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
-    noncons_flux_arr1 = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
-    noncons_flux_arr2 = CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
+    symmetric_flux_arr1 =
+        CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
+    symmetric_flux_arr2 =
+        CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
+    noncons_flux_arr1 =
+        CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
+    noncons_flux_arr2 =
+        CuArray{Float64}(undef, size(u, 1), size(u, 2), size(u, 2), size(u, 2), size(u, 4))
 
     size_arr = CuArray{Float64}(undef, size(u, 2)^3, size(u, 4))
 
-    symmetric_noncons_flux_kernel = @cuda launch = false symmetric_noncons_flux_kernel!(symmetric_flux_arr1, symmetric_flux_arr2,
-        noncons_flux_arr1, noncons_flux_arr2, u, derivative_split, equations, symmetric_flux, nonconservative_flux)
-    symmetric_noncons_flux_kernel(symmetric_flux_arr1, symmetric_flux_arr2, noncons_flux_arr1, noncons_flux_arr2, u, derivative_split,
-        equations, symmetric_flux, nonconservative_flux; configurator_2d(symmetric_noncons_flux_kernel, size_arr)...)
+    symmetric_noncons_flux_kernel = @cuda launch = false symmetric_noncons_flux_kernel!(
+        symmetric_flux_arr1,
+        symmetric_flux_arr2,
+        noncons_flux_arr1,
+        noncons_flux_arr2,
+        u,
+        derivative_split,
+        equations,
+        symmetric_flux,
+        nonconservative_flux,
+    )
+    symmetric_noncons_flux_kernel(
+        symmetric_flux_arr1,
+        symmetric_flux_arr2,
+        noncons_flux_arr1,
+        noncons_flux_arr2,
+        u,
+        derivative_split,
+        equations,
+        symmetric_flux,
+        nonconservative_flux;
+        configurator_2d(symmetric_noncons_flux_kernel, size_arr)...,
+    )
 
     size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
 
-    symmetric_noncons_integral_kernel = @cuda launch = false symmetric_noncons_integral_kernel!(du, derivative_split, symmetric_flux_arr1,
-        symmetric_flux_arr2, noncons_flux_arr1, noncons_flux_arr2)
-    symmetric_noncons_integral_kernel(du, derivative_split, symmetric_flux_arr1, symmetric_flux_arr2, noncons_flux_arr1, noncons_flux_arr2;
-        configurator_3d(symmetric_noncons_integral_kernel, size_arr)...)
+    symmetric_noncons_integral_kernel =
+        @cuda launch = false symmetric_noncons_integral_kernel!(
+            du,
+            derivative_split,
+            symmetric_flux_arr1,
+            symmetric_flux_arr2,
+            noncons_flux_arr1,
+            noncons_flux_arr2,
+        )
+    symmetric_noncons_integral_kernel(
+        du,
+        derivative_split,
+        symmetric_flux_arr1,
+        symmetric_flux_arr2,
+        noncons_flux_arr1,
+        noncons_flux_arr2;
+        configurator_3d(symmetric_noncons_integral_kernel, size_arr)...,
+    )
 
     return nothing
 end
@@ -367,14 +507,18 @@ function prolong_interfaces_kernel!(interfaces_u, u, neighbor_ids, orientations)
         right_element = neighbor_ids[2, k]
 
         @inbounds begin
-            interfaces_u[1, j1, j2, k] = u[j1,
+            interfaces_u[1, j1, j2, k] = u[
+                j1,
                 isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j2,
                 isequal(orientation, 1)*j2+isequal(orientation, 2)*size(u, 2),
-                left_element]
-            interfaces_u[2, j1, j2, k] = u[j1,
+                left_element,
+            ]
+            interfaces_u[2, j1, j2, k] = u[
+                j1,
                 isequal(orientation, 1)*1+isequal(orientation, 2)*j2,
                 isequal(orientation, 1)*j2+isequal(orientation, 2)*1,
-                right_element]
+                right_element,
+            ]
         end
     end
 
@@ -388,10 +532,25 @@ function cuda_prolong2interfaces!(u, mesh::TreeMesh{2}, cache)
     orientations = CuArray{Int}(cache.interfaces.orientations)
     interfaces_u = CuArray{Float64}(cache.interfaces.u)
 
-    size_arr = CuArray{Float64}(undef, size(interfaces_u, 2) * size(interfaces_u, 3), size(interfaces_u, 4))
+    size_arr = CuArray{Float64}(
+        undef,
+        size(interfaces_u, 2) * size(interfaces_u, 3),
+        size(interfaces_u, 4),
+    )
 
-    prolong_interfaces_kernel = @cuda launch = false prolong_interfaces_kernel!(interfaces_u, u, neighbor_ids, orientations)
-    prolong_interfaces_kernel(interfaces_u, u, neighbor_ids, orientations; configurator_2d(prolong_interfaces_kernel, size_arr)...)
+    prolong_interfaces_kernel = @cuda launch = false prolong_interfaces_kernel!(
+        interfaces_u,
+        u,
+        neighbor_ids,
+        orientations,
+    )
+    prolong_interfaces_kernel(
+        interfaces_u,
+        u,
+        neighbor_ids,
+        orientations;
+        configurator_2d(prolong_interfaces_kernel, size_arr)...,
+    )
 
     cache.interfaces.u = interfaces_u  # Automatically copy back to CPU
 
@@ -399,8 +558,13 @@ function cuda_prolong2interfaces!(u, mesh::TreeMesh{2}, cache)
 end
 
 # CUDA kernel for calculating surface fluxes 
-function surface_flux_kernel!(surface_flux_arr, interfaces_u, orientations,
-    equations::AbstractEquations{2}, surface_flux::Any)
+function surface_flux_kernel!(
+    surface_flux_arr,
+    interfaces_u,
+    orientations,
+    equations::AbstractEquations{2},
+    surface_flux::Any,
+)
 
     j2 = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -422,13 +586,22 @@ function surface_flux_kernel!(surface_flux_arr, interfaces_u, orientations,
 end
 
 # CUDA kernel for setting interface fluxes on orientation 1, 2
-function interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_ids, orientations)
+function interface_flux_kernel!(
+    surface_flux_values,
+    surface_flux_arr,
+    neighbor_ids,
+    orientations,
+)
 
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
-    if (i <= size(surface_flux_values, 1) && j <= size(surface_flux_arr, 3) && k <= size(surface_flux_arr, 4))
+    if (
+        i <= size(surface_flux_values, 1) &&
+        j <= size(surface_flux_arr, 3) &&
+        k <= size(surface_flux_arr, 4)
+    )
         left_id = neighbor_ids[1, k]
         right_id = neighbor_ids[2, k]
 
@@ -436,8 +609,10 @@ function interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_
         right_direction = 2 * orientations[k] - 1
 
         @inbounds begin
-            surface_flux_values[i, j, left_direction, left_id] = surface_flux_arr[1, i, j, k]
-            surface_flux_values[i, j, right_direction, right_id] = surface_flux_arr[1, i, j, k]
+            surface_flux_values[i, j, left_direction, left_id] =
+                surface_flux_arr[1, i, j, k]
+            surface_flux_values[i, j, right_direction, right_id] =
+                surface_flux_arr[1, i, j, k]
         end
     end
 
@@ -445,8 +620,13 @@ function interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_
 end
 
 # Launch CUDA kernels to calculate interface fluxes
-function cuda_interface_flux!(mesh::TreeMesh{2}, nonconservative_terms::False,
-    equations, dg::DGSEM, cache)
+function cuda_interface_flux!(
+    mesh::TreeMesh{2},
+    nonconservative_terms::False,
+    equations,
+    dg::DGSEM,
+    cache,
+)
 
     surface_flux = dg.surface_integral.surface_flux
 
@@ -458,13 +638,42 @@ function cuda_interface_flux!(mesh::TreeMesh{2}, nonconservative_terms::False,
 
     size_arr = CuArray{Float64}(undef, size(interfaces_u, 3), size(interfaces_u, 4))
 
-    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(surface_flux_arr, interfaces_u, orientations, equations, surface_flux)
-    surface_flux_kernel(surface_flux_arr, interfaces_u, orientations, equations, surface_flux; configurator_2d(surface_flux_kernel, size_arr)...)
+    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(
+        surface_flux_arr,
+        interfaces_u,
+        orientations,
+        equations,
+        surface_flux,
+    )
+    surface_flux_kernel(
+        surface_flux_arr,
+        interfaces_u,
+        orientations,
+        equations,
+        surface_flux;
+        configurator_2d(surface_flux_kernel, size_arr)...,
+    )
 
-    size_arr = CuArray{Float64}(undef, size(surface_flux_values, 1), size(interfaces_u, 3), size(interfaces_u, 4))
+    size_arr = CuArray{Float64}(
+        undef,
+        size(surface_flux_values, 1),
+        size(interfaces_u, 3),
+        size(interfaces_u, 4),
+    )
 
-    interface_flux_kernel = @cuda launch = false interface_flux_kernel!(surface_flux_values, surface_flux_arr, neighbor_ids, orientations)
-    interface_flux_kernel(surface_flux_values, surface_flux_arr, neighbor_ids, orientations; configurator_3d(interface_flux_kernel, size_arr)...)
+    interface_flux_kernel = @cuda launch = false interface_flux_kernel!(
+        surface_flux_values,
+        surface_flux_arr,
+        neighbor_ids,
+        orientations,
+    )
+    interface_flux_kernel(
+        surface_flux_values,
+        surface_flux_arr,
+        neighbor_ids,
+        orientations;
+        configurator_3d(interface_flux_kernel, size_arr)...,
+    )
 
     cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
 
@@ -472,7 +681,13 @@ function cuda_interface_flux!(mesh::TreeMesh{2}, nonconservative_terms::False,
 end
 
 # CUDA kernel for prolonging two boundaries in direction x, y
-function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_sides, orientations)
+function prolong_boundaries_kernel!(
+    boundaries_u,
+    u,
+    neighbor_ids,
+    neighbor_sides,
+    orientations,
+)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -486,14 +701,20 @@ function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_side
         orientation = orientations[k]
 
         @inbounds begin
-            boundaries_u[1, j1, j2, k] = u[j1,
-                isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j2,
-                isequal(orientation, 1)*j2+isequal(orientation, 2)*size(u, 2),
-                element] * isequal(side, 1) # Set to 0 instead of NaN
-            boundaries_u[2, j1, j2, k] = u[j1,
-                isequal(orientation, 1)*1+isequal(orientation, 2)*j2,
-                isequal(orientation, 1)*j2+isequal(orientation, 2)*1,
-                element] * (1 - isequal(side, 1)) # Set to 0 instead of NaN
+            boundaries_u[1, j1, j2, k] =
+                u[
+                    j1,
+                    isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j2,
+                    isequal(orientation, 1)*j2+isequal(orientation, 2)*size(u, 2),
+                    element,
+                ] * isequal(side, 1) # Set to 0 instead of NaN
+            boundaries_u[2, j1, j2, k] =
+                u[
+                    j1,
+                    isequal(orientation, 1)*1+isequal(orientation, 2)*j2,
+                    isequal(orientation, 1)*j2+isequal(orientation, 2)*1,
+                    element,
+                ] * (1 - isequal(side, 1)) # Set to 0 instead of NaN
         end
     end
 
@@ -501,25 +722,50 @@ function prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_side
 end
 
 # Assert 
-function cuda_prolong2boundaries!(u, mesh::TreeMesh{2},
-    boundary_condition::BoundaryConditionPeriodic, cache)
+function cuda_prolong2boundaries!(
+    u,
+    mesh::TreeMesh{2},
+    boundary_condition::BoundaryConditionPeriodic,
+    cache,
+)
 
     @assert iszero(length(cache.boundaries.orientations))
 end
 
 # Launch CUDA kernel to prolong solution to boundaries
-function cuda_prolong2boundaries!(u, mesh::TreeMesh{2},
-    boundary_conditions::NamedTuple, cache)
+function cuda_prolong2boundaries!(
+    u,
+    mesh::TreeMesh{2},
+    boundary_conditions::NamedTuple,
+    cache,
+)
 
     neighbor_ids = CuArray{Int}(cache.boundaries.neighbor_ids)
     neighbor_sides = CuArray{Int}(cache.boundaries.neighbor_sides)
     orientations = CuArray{Int}(cache.boundaries.orientations)
     boundaries_u = CuArray{Float64}(cache.boundaries.u)
 
-    size_arr = CuArray{Float64}(undef, size(boundaries_u, 2) * size(boundaries_u, 3), size(boundaries_u, 4))
+    size_arr = CuArray{Float64}(
+        undef,
+        size(boundaries_u, 2) * size(boundaries_u, 3),
+        size(boundaries_u, 4),
+    )
 
-    prolong_boundaries_kernel = @cuda launch = false prolong_boundaries_kernel!(boundaries_u, u, neighbor_ids, neighbor_sides, orientations)
-    prolong_boundaries_kernel(boundaries_u, u, neighbor_ids, neighbor_sides, orientations; configurator_2d(prolong_boundaries_kernel, size_arr)...)
+    prolong_boundaries_kernel = @cuda launch = false prolong_boundaries_kernel!(
+        boundaries_u,
+        u,
+        neighbor_ids,
+        neighbor_sides,
+        orientations,
+    )
+    prolong_boundaries_kernel(
+        boundaries_u,
+        u,
+        neighbor_ids,
+        neighbor_sides,
+        orientations;
+        configurator_2d(prolong_boundaries_kernel, size_arr)...,
+    )
 
     cache.boundaries.u = boundaries_u  # Automatically copy back to CPU
 
@@ -533,7 +779,7 @@ function last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
 
     if (i <= length(n_boundaries_per_direction))
         @inbounds begin
-            for ii in 1:i
+            for ii = 1:i
                 lasts[i] += n_boundaries_per_direction[ii]
             end
             firsts[i] = lasts[i] - n_boundaries_per_direction[i] + 1
@@ -544,10 +790,20 @@ function last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
 end
 
 # CUDA kernel for calculating boundary fluxes in direction 1, 2, 3, 4
-function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-    boundary_arr, indices_arr,
-    neighbor_ids, neighbor_sides, orientations,
-    boundary_conditions::NamedTuple, equations::AbstractEquations{2}, surface_flux::Any)
+function boundary_flux_kernel!(
+    surface_flux_values,
+    boundaries_u,
+    node_coordinates,
+    t,
+    boundary_arr,
+    indices_arr,
+    neighbor_ids,
+    neighbor_sides,
+    orientations,
+    boundary_conditions::NamedTuple,
+    equations::AbstractEquations{2},
+    surface_flux::Any,
+)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -555,8 +811,10 @@ function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinat
     if (j <= size(surface_flux_values, 2) && k <= length(boundary_arr))
         boundary = boundary_arr[k]
         direction =
-            (indices_arr[1] <= boundary) + (indices_arr[2] <= boundary) +
-            (indices_arr[3] <= boundary) + (indices_arr[4] <= boundary)
+            (indices_arr[1] <= boundary) +
+            (indices_arr[2] <= boundary) +
+            (indices_arr[3] <= boundary) +
+            (indices_arr[4] <= boundary)
 
         neighbor = neighbor_ids[boundary]
         side = neighbor_sides[boundary]
@@ -566,8 +824,16 @@ function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinat
         u_inner = isequal(side, 1) * u_ll + (1 - isequal(side, 1)) * u_rr
         x = get_node_coords(node_coordinates, equations, j, boundary)
 
-        boundary_flux_node = boundary_stable_helper(boundary_conditions,
-            u_inner, orientation, direction, x, t, surface_flux, equations)
+        boundary_flux_node = boundary_stable_helper(
+            boundary_conditions,
+            u_inner,
+            orientation,
+            direction,
+            x,
+            t,
+            surface_flux,
+            equations,
+        )
 
         @inbounds begin
             for ii in axes(surface_flux_values, 1)
@@ -580,15 +846,27 @@ function boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinat
 end
 
 # Assert 
-function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_condition::BoundaryConditionPeriodic,
-    equations, dg::DGSEM, cache)
+function cuda_boundary_flux!(
+    t,
+    mesh::TreeMesh{2},
+    boundary_condition::BoundaryConditionPeriodic,
+    equations,
+    dg::DGSEM,
+    cache,
+)
 
     @assert iszero(length(cache.boundaries.orientations))
 end
 
 # Launch CUDA kernels to calculate boundary fluxes
-function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_conditions::NamedTuple,
-    equations, dg::DGSEM, cache)
+function cuda_boundary_flux!(
+    t,
+    mesh::TreeMesh{2},
+    boundary_conditions::NamedTuple,
+    equations,
+    dg::DGSEM,
+    cache,
+)
 
     surface_flux = dg.surface_integral.surface_flux
 
@@ -603,8 +881,17 @@ function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_conditions::NamedTup
     lasts = CUDA.zeros(Int, length(n_boundaries_per_direction))
     firsts = CUDA.zeros(Int, length(n_boundaries_per_direction))
 
-    last_first_indices_kernel = @cuda launch = false last_first_indices_kernel!(lasts, firsts, n_boundaries_per_direction)
-    last_first_indices_kernel(lasts, firsts, n_boundaries_per_direction; configurator_1d(last_first_indices_kernel, lasts)...)
+    last_first_indices_kernel = @cuda launch = false last_first_indices_kernel!(
+        lasts,
+        firsts,
+        n_boundaries_per_direction,
+    )
+    last_first_indices_kernel(
+        lasts,
+        firsts,
+        n_boundaries_per_direction;
+        configurator_1d(last_first_indices_kernel, lasts)...,
+    )
 
     lasts, firsts = Array(lasts), Array(firsts)
     boundary_arr = CuArray{Int}(firsts[1]:lasts[4])
@@ -612,10 +899,35 @@ function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_conditions::NamedTup
 
     size_arr = CuArray{Float64}(undef, size(surface_flux_values, 2), length(boundary_arr))
 
-    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(surface_flux_values, boundaries_u, node_coordinates, t,
-        boundary_arr, indices_arr, neighbor_ids, neighbor_sides, orientations, boundary_conditions, equations, surface_flux)
-    boundary_flux_kernel(surface_flux_values, boundaries_u, node_coordinates, t, boundary_arr, indices_arr, neighbor_ids, neighbor_sides,
-        orientations, boundary_conditions, equations, surface_flux; configurator_2d(boundary_flux_kernel, size_arr)...)
+    boundary_flux_kernel = @cuda launch = false boundary_flux_kernel!(
+        surface_flux_values,
+        boundaries_u,
+        node_coordinates,
+        t,
+        boundary_arr,
+        indices_arr,
+        neighbor_ids,
+        neighbor_sides,
+        orientations,
+        boundary_conditions,
+        equations,
+        surface_flux,
+    )
+    boundary_flux_kernel(
+        surface_flux_values,
+        boundaries_u,
+        node_coordinates,
+        t,
+        boundary_arr,
+        indices_arr,
+        neighbor_ids,
+        neighbor_sides,
+        orientations,
+        boundary_conditions,
+        equations,
+        surface_flux;
+        configurator_2d(boundary_flux_kernel, size_arr)...,
+    )
 
     cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
 
@@ -623,8 +935,14 @@ function cuda_boundary_flux!(t, mesh::TreeMesh{2}, boundary_conditions::NamedTup
 end
 
 # CUDA kernel for copying data small to small on mortars
-function prolong_mortars_small2small_kernel!(u_upper, u_lower, u,
-    neighbor_ids, large_sides, orientations)
+function prolong_mortars_small2small_kernel!(
+    u_upper,
+    u_lower,
+    u,
+    neighbor_ids,
+    large_sides,
+    orientations,
+)
 
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -638,25 +956,37 @@ function prolong_mortars_small2small_kernel!(u_upper, u_lower, u,
         upper_element = neighbor_ids[2, k]
 
         @inbounds begin
-            u_upper[2, i, j, k] = u[i,
-                isequal(orientation, 1)*1+isequal(orientation, 2)*j,
-                isequal(orientation, 1)*j+isequal(orientation, 2)*1,
-                upper_element] * isequal(large_side, 1)
+            u_upper[2, i, j, k] =
+                u[
+                    i,
+                    isequal(orientation, 1)*1+isequal(orientation, 2)*j,
+                    isequal(orientation, 1)*j+isequal(orientation, 2)*1,
+                    upper_element,
+                ] * isequal(large_side, 1)
 
-            u_lower[2, i, j, k] = u[i,
-                isequal(orientation, 1)*1+isequal(orientation, 2)*j,
-                isequal(orientation, 1)*j+isequal(orientation, 2)*1,
-                lower_element] * isequal(large_side, 1)
+            u_lower[2, i, j, k] =
+                u[
+                    i,
+                    isequal(orientation, 1)*1+isequal(orientation, 2)*j,
+                    isequal(orientation, 1)*j+isequal(orientation, 2)*1,
+                    lower_element,
+                ] * isequal(large_side, 1)
 
-            u_upper[1, i, j, k] = u[i,
-                isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j,
-                isequal(orientation, 1)*j+isequal(orientation, 2)*size(u, 2),
-                upper_element] * isequal(large_side, 2)
+            u_upper[1, i, j, k] =
+                u[
+                    i,
+                    isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j,
+                    isequal(orientation, 1)*j+isequal(orientation, 2)*size(u, 2),
+                    upper_element,
+                ] * isequal(large_side, 2)
 
-            u_lower[1, i, j, k] = u[i,
-                isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j,
-                isequal(orientation, 1)*j+isequal(orientation, 2)*size(u, 2),
-                lower_element] * isequal(large_side, 2)
+            u_lower[1, i, j, k] =
+                u[
+                    i,
+                    isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*j,
+                    isequal(orientation, 1)*j+isequal(orientation, 2)*size(u, 2),
+                    lower_element,
+                ] * isequal(large_side, 2)
         end
     end
 
@@ -664,8 +994,16 @@ function prolong_mortars_small2small_kernel!(u_upper, u_lower, u,
 end
 
 # CUDA kernel for interpolating data large to small on mortars
-function prolong_mortars_large2small_kernel!(u_upper, u_lower, u, forward_upper, forward_lower,
-    neighbor_ids, large_sides, orientations)
+function prolong_mortars_large2small_kernel!(
+    u_upper,
+    u_lower,
+    u,
+    forward_upper,
+    forward_lower,
+    neighbor_ids,
+    large_sides,
+    orientations,
+)
 
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -680,25 +1018,45 @@ function prolong_mortars_large2small_kernel!(u_upper, u_lower, u, forward_upper,
 
         @inbounds begin
             for ii in axes(forward_upper, 2)
-                u_upper[leftright, i, j, k] += forward_upper[j, ii] * u[i,
-                                                   isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*ii,
-                                                   isequal(orientation, 1)*ii+isequal(orientation, 2)*size(u, 2),
-                                                   large_element] * isequal(large_side, 1)
-                u_lower[leftright, i, j, k] += forward_lower[j, ii] * u[i,
-                                                   isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*ii,
-                                                   isequal(orientation, 1)*ii+isequal(orientation, 2)*size(u, 2),
-                                                   large_element] * isequal(large_side, 1)
+                u_upper[leftright, i, j, k] +=
+                    forward_upper[j, ii] *
+                    u[
+                        i,
+                        isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*ii,
+                        isequal(orientation, 1)*ii+isequal(orientation, 2)*size(u, 2),
+                        large_element,
+                    ] *
+                    isequal(large_side, 1)
+                u_lower[leftright, i, j, k] +=
+                    forward_lower[j, ii] *
+                    u[
+                        i,
+                        isequal(orientation, 1)*size(u, 2)+isequal(orientation, 2)*ii,
+                        isequal(orientation, 1)*ii+isequal(orientation, 2)*size(u, 2),
+                        large_element,
+                    ] *
+                    isequal(large_side, 1)
             end
 
             for ii in axes(forward_lower, 2)
-                u_upper[leftright, i, j, k] += forward_upper[j, ii] * u[i,
-                                                   isequal(orientation, 1)*1+isequal(orientation, 2)*ii,
-                                                   isequal(orientation, 1)*ii+isequal(orientation, 2)*1,
-                                                   large_element] * isequal(large_side, 2)
-                u_lower[leftright, i, j, k] += forward_lower[j, ii] * u[i,
-                                                   isequal(orientation, 1)*1+isequal(orientation, 2)*ii,
-                                                   isequal(orientation, 1)*ii+isequal(orientation, 2)*1,
-                                                   large_element] * isequal(large_side, 2)
+                u_upper[leftright, i, j, k] +=
+                    forward_upper[j, ii] *
+                    u[
+                        i,
+                        isequal(orientation, 1)*1+isequal(orientation, 2)*ii,
+                        isequal(orientation, 1)*ii+isequal(orientation, 2)*1,
+                        large_element,
+                    ] *
+                    isequal(large_side, 2)
+                u_lower[leftright, i, j, k] +=
+                    forward_lower[j, ii] *
+                    u[
+                        i,
+                        isequal(orientation, 1)*1+isequal(orientation, 2)*ii,
+                        isequal(orientation, 1)*ii+isequal(orientation, 2)*1,
+                        large_element,
+                    ] *
+                    isequal(large_side, 2)
             end
         end
     end
@@ -725,15 +1083,47 @@ function cuda_prolong2mortars!(u, mesh::TreeMesh{2}, dg::DGSEM, cache_mortars::F
 
     size_arr = CuArray{Float64}(undef, size(u_upper, 2), size(u_upper, 3), size(u_upper, 4))
 
-    prolong_mortars_small2small_kernel = @cuda launch = false prolong_mortars_small2small_kernel!(u_upper, u_lower, u,
-        neighbor_ids, large_sides, orientations)
-    prolong_mortars_small2small_kernel(u_upper, u_lower, u, neighbor_ids, large_sides, orientations;
-        configurator_3d(prolong_mortars_small2small_kernel, size_arr)...)
+    prolong_mortars_small2small_kernel =
+        @cuda launch = false prolong_mortars_small2small_kernel!(
+            u_upper,
+            u_lower,
+            u,
+            neighbor_ids,
+            large_sides,
+            orientations,
+        )
+    prolong_mortars_small2small_kernel(
+        u_upper,
+        u_lower,
+        u,
+        neighbor_ids,
+        large_sides,
+        orientations;
+        configurator_3d(prolong_mortars_small2small_kernel, size_arr)...,
+    )
 
-    prolong_mortars_large2small_kernel = @cuda launch = false prolong_mortars_large2small_kernel!(u_upper, u_lower, u,
-        forward_upper, forward_lower, neighbor_ids, large_sides, orientations)
-    prolong_mortars_large2small_kernel(u_upper, u_lower, u, forward_upper, forward_lower, neighbor_ids, large_sides, orientations;
-        configurator_3d(prolong_mortars_large2small_kernel, size_arr)...)
+    prolong_mortars_large2small_kernel =
+        @cuda launch = false prolong_mortars_large2small_kernel!(
+            u_upper,
+            u_lower,
+            u,
+            forward_upper,
+            forward_lower,
+            neighbor_ids,
+            large_sides,
+            orientations,
+        )
+    prolong_mortars_large2small_kernel(
+        u_upper,
+        u_lower,
+        u,
+        forward_upper,
+        forward_lower,
+        neighbor_ids,
+        large_sides,
+        orientations;
+        configurator_3d(prolong_mortars_large2small_kernel, size_arr)...,
+    )
 
     cache.mortars.u_upper = u_upper # Automatically copy back to CPU
     cache.mortars.u_lower = u_lower # Automatically copy back to CPU
@@ -753,12 +1143,16 @@ function surface_integral_kernel!(du, factor_arr, surface_flux_values)
         j2 = rem(j - 1, size(du, 2)) + 1
 
         @inbounds begin
-            du[i, j1, j2, k] -= (surface_flux_values[i, j2, 1, k] * isequal(j1, 1)
-                                 +
-                                 surface_flux_values[i, j1, 3, k] * isequal(j2, 1)) * factor_arr[1]
-            du[i, j1, j2, k] += (surface_flux_values[i, j2, 2, k] * isequal(j1, size(du, 2))
-                                 +
-                                 surface_flux_values[i, j1, 4, k] * isequal(j2, size(du, 2))) * factor_arr[2]
+            du[i, j1, j2, k] -=
+                (
+                    surface_flux_values[i, j2, 1, k] * isequal(j1, 1) +
+                    surface_flux_values[i, j1, 3, k] * isequal(j2, 1)
+                ) * factor_arr[1]
+            du[i, j1, j2, k] +=
+                (
+                    surface_flux_values[i, j2, 2, k] * isequal(j1, size(du, 2)) +
+                    surface_flux_values[i, j1, 4, k] * isequal(j2, size(du, 2))
+                ) * factor_arr[2]
         end
     end
 
@@ -768,13 +1162,22 @@ end
 # Launch CUDA kernel to calculate surface integrals
 function cuda_surface_integral!(du, mesh::TreeMesh{2}, dg::DGSEM, cache) # surface_integral
 
-    factor_arr = CuArray{Float64}([dg.basis.boundary_interpolation[1, 1], dg.basis.boundary_interpolation[size(du, 2), 2]])
+    factor_arr = CuArray{Float64}([
+        dg.basis.boundary_interpolation[1, 1],
+        dg.basis.boundary_interpolation[size(du, 2), 2],
+    ])
     surface_flux_values = CuArray{Float64}(cache.elements.surface_flux_values)
 
     size_arr = CuArray{Float64}(undef, size(du, 1), size(du, 2)^2, size(du, 4))
 
-    surface_integral_kernel = @cuda launch = false surface_integral_kernel!(du, factor_arr, surface_flux_values)
-    surface_integral_kernel(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel, size_arr)...)
+    surface_integral_kernel =
+        @cuda launch = false surface_integral_kernel!(du, factor_arr, surface_flux_values)
+    surface_integral_kernel(
+        du,
+        factor_arr,
+        surface_flux_values;
+        configurator_3d(surface_integral_kernel, size_arr)...,
+    )
 
     return nothing
 end
@@ -810,8 +1213,14 @@ function cuda_jacobian!(du, mesh::TreeMesh{2}, cache)
 end
 
 # CUDA kernel for calculating source terms
-function source_terms_kernel!(du, u, node_coordinates, t,
-    equations::AbstractEquations{2}, source_terms::Function)
+function source_terms_kernel!(
+    du,
+    u,
+    node_coordinates,
+    t,
+    equations::AbstractEquations{2},
+    source_terms::Function,
+)
 
     j = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     k = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -836,78 +1245,144 @@ function source_terms_kernel!(du, u, node_coordinates, t,
 end
 
 # Return nothing             
-function cuda_sources!(du, u, t, source_terms::Nothing,
-    equations::AbstractEquations{2}, cache)
+function cuda_sources!(
+    du,
+    u,
+    t,
+    source_terms::Nothing,
+    equations::AbstractEquations{2},
+    cache,
+)
 
     return nothing
 end
 
 # Launch CUDA kernel to calculate source terms 
-function cuda_sources!(du, u, t, source_terms,
-    equations::AbstractEquations{2}, cache)
+function cuda_sources!(du, u, t, source_terms, equations::AbstractEquations{2}, cache)
 
     node_coordinates = CuArray{Float64}(cache.elements.node_coordinates)
 
     size_arr = CuArray{Float64}(undef, size(u, 2)^2, size(u, 4))
 
-    source_terms_kernel = @cuda launch = false source_terms_kernel!(du, u, node_coordinates, t, equations, source_terms)
-    source_terms_kernel(du, u, node_coordinates, t, equations, source_terms; configurator_2d(source_terms_kernel, size_arr)...)
+    source_terms_kernel = @cuda launch = false source_terms_kernel!(
+        du,
+        u,
+        node_coordinates,
+        t,
+        equations,
+        source_terms,
+    )
+    source_terms_kernel(
+        du,
+        u,
+        node_coordinates,
+        t,
+        equations,
+        source_terms;
+        configurator_2d(source_terms_kernel, size_arr)...,
+    )
 
     return nothing
 end
 
 # Pack kernels into `rhs_cpu!()`
 #################################################################################
-function rhs_cpu!(du, u, t, mesh::TreeMesh{2}, equations,
-    initial_condition, boundary_conditions, source_terms::Source,
-    dg::DGSEM, cache) where {Source}
+function rhs_cpu!(
+    du,
+    u,
+    t,
+    mesh::TreeMesh{2},
+    equations,
+    initial_condition,
+    boundary_conditions,
+    source_terms::Source,
+    dg::DGSEM,
+    cache,
+) where {Source}
 
     reset_du!(du, dg, cache)
 
     calc_volume_integral!(
-        du, u, mesh,
-        have_nonconservative_terms(equations), equations,
-        dg.volume_integral, dg, cache)
+        du,
+        u,
+        mesh,
+        have_nonconservative_terms(equations),
+        equations,
+        dg.volume_integral,
+        dg,
+        cache,
+    )
 
-    prolong2interfaces!(
-        cache, u, mesh, equations, dg.surface_integral, dg)
+    prolong2interfaces!(cache, u, mesh, equations, dg.surface_integral, dg)
 
     calc_interface_flux!(
-        cache.elements.surface_flux_values, mesh,
-        have_nonconservative_terms(equations), equations,
-        dg.surface_integral, dg, cache)
+        cache.elements.surface_flux_values,
+        mesh,
+        have_nonconservative_terms(equations),
+        equations,
+        dg.surface_integral,
+        dg,
+        cache,
+    )
 
-    prolong2boundaries!(cache, u, mesh, equations,
-        dg.surface_integral, dg)
+    prolong2boundaries!(cache, u, mesh, equations, dg.surface_integral, dg)
 
-    calc_boundary_flux!(cache, t, boundary_conditions, mesh, equations,
-        dg.surface_integral, dg)
+    calc_boundary_flux!(
+        cache,
+        t,
+        boundary_conditions,
+        mesh,
+        equations,
+        dg.surface_integral,
+        dg,
+    )
 
-    prolong2mortars!(cache, u, mesh, equations,
-        dg.mortar, dg.surface_integral, dg)
+    prolong2mortars!(cache, u, mesh, equations, dg.mortar, dg.surface_integral, dg)
 
-    calc_mortar_flux!(cache.elements.surface_flux_values, mesh,
-        have_nonconservative_terms(equations), equations,
-        dg.mortar, dg.surface_integral, dg, cache)
+    calc_mortar_flux!(
+        cache.elements.surface_flux_values,
+        mesh,
+        have_nonconservative_terms(equations),
+        equations,
+        dg.mortar,
+        dg.surface_integral,
+        dg,
+        cache,
+    )
 
-    calc_surface_integral!(
-        du, u, mesh, equations, dg.surface_integral, dg, cache)
+    calc_surface_integral!(du, u, mesh, equations, dg.surface_integral, dg, cache)
 
     apply_jacobian!(du, mesh, equations, dg, cache)
 
-    calc_sources!(du, u, t,
-        source_terms, equations, dg, cache)
+    calc_sources!(du, u, t, source_terms, equations, dg, cache)
 
     return nothing
 end
 
 function rhs_cpu!(du_ode, u_ode, semi::SemidiscretizationHyperbolic, t)
-    @unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
+    @unpack mesh,
+    equations,
+    initial_condition,
+    boundary_conditions,
+    source_terms,
+    solver,
+    cache = semi
 
     u = wrap_array(u_ode, mesh, equations, solver, cache)
     du = wrap_array(du_ode, mesh, equations, solver, cache)
 
-    rhs_cpu!(du, u, t, mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache)
+    rhs_cpu!(
+        du,
+        u,
+        t,
+        mesh,
+        equations,
+        initial_condition,
+        boundary_conditions,
+        source_terms,
+        solver,
+        cache,
+    )
 
     return nothing
 end
@@ -922,35 +1397,44 @@ end
 
 # Pack kernels into `rhs_gpu!()`
 #################################################################################
-function rhs_gpu!(du_cpu, u_cpu, t, mesh::TreeMesh{2}, equations,
-    initial_condition, boundary_conditions, source_terms::Source,
-    dg::DGSEM, cache) where {Source}
+function rhs_gpu!(
+    du_cpu,
+    u_cpu,
+    t,
+    mesh::TreeMesh{2},
+    equations,
+    initial_condition,
+    boundary_conditions,
+    source_terms::Source,
+    dg::DGSEM,
+    cache,
+) where {Source}
 
     du, u = copy_to_gpu!(du_cpu, u_cpu)
 
     cuda_volume_integral!(
-        du, u, mesh,
-        have_nonconservative_terms(equations), equations,
-        dg.volume_integral, dg)
+        du,
+        u,
+        mesh,
+        have_nonconservative_terms(equations),
+        equations,
+        dg.volume_integral,
+        dg,
+    )
 
     cuda_prolong2interfaces!(u, mesh, cache)
 
-    cuda_interface_flux!(
-        mesh, have_nonconservative_terms(equations),
-        equations, dg, cache,)
+    cuda_interface_flux!(mesh, have_nonconservative_terms(equations), equations, dg, cache)
 
-    cuda_prolong2boundaries!(u, mesh,
-        boundary_conditions, cache)
+    cuda_prolong2boundaries!(u, mesh, boundary_conditions, cache)
 
-    cuda_boundary_flux!(t, mesh, boundary_conditions,
-        equations, dg, cache)
+    cuda_boundary_flux!(t, mesh, boundary_conditions, equations, dg, cache)
 
     cuda_surface_integral!(du, mesh, dg, cache)
 
     cuda_jacobian!(du, mesh, cache)
 
-    cuda_sources!(du, u, t,
-        source_terms, equations, cache)
+    cuda_sources!(du, u, t, source_terms, equations, cache)
 
     du_computed, _ = copy_to_cpu!(du, u)
     du_cpu .= du_computed
@@ -959,12 +1443,29 @@ function rhs_gpu!(du_cpu, u_cpu, t, mesh::TreeMesh{2}, equations,
 end
 
 function rhs_gpu!(du_ode, u_ode, semi::SemidiscretizationHyperbolic, t)
-    @unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
+    @unpack mesh,
+    equations,
+    initial_condition,
+    boundary_conditions,
+    source_terms,
+    solver,
+    cache = semi
 
     u = wrap_array(u_ode, mesh, equations, solver, cache)
     du = wrap_array(du_ode, mesh, equations, solver, cache)
 
-    rhs_gpu!(du, u, t, mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache)
+    rhs_gpu!(
+        du,
+        u,
+        t,
+        mesh,
+        equations,
+        initial_condition,
+        boundary_conditions,
+        source_terms,
+        solver,
+        cache,
+    )
 
     return nothing
 end

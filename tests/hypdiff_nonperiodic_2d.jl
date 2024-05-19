@@ -3,25 +3,41 @@ equations = HyperbolicDiffusionEquations2D()
 
 initial_condition = initial_condition_poisson_nonperiodic
 
-boundary_conditions = (x_neg=boundary_condition_poisson_nonperiodic,
-    x_pos=boundary_condition_poisson_nonperiodic,
-    y_neg=boundary_condition_periodic,
-    y_pos=boundary_condition_periodic)
+boundary_conditions = (
+    x_neg = boundary_condition_poisson_nonperiodic,
+    x_pos = boundary_condition_poisson_nonperiodic,
+    y_neg = boundary_condition_periodic,
+    y_pos = boundary_condition_periodic,
+)
 
-solver = DGSEM(polydeg=4, surface_flux=flux_lax_friedrichs)
+solver = DGSEM(polydeg = 4, surface_flux = flux_lax_friedrichs)
 
 coordinates_min = (0.0, 0.0)
 coordinates_max = (1.0, 1.0)
-mesh = TreeMesh(coordinates_min, coordinates_max,
-    initial_refinement_level=3,
-    n_cells_max=30_000,
-    periodicity=(false, true))
+mesh = TreeMesh(
+    coordinates_min,
+    coordinates_max,
+    initial_refinement_level = 3,
+    n_cells_max = 30_000,
+    periodicity = (false, true),
+)
 
-semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition, solver,
-    boundary_conditions=boundary_conditions,
-    source_terms=source_terms_poisson_nonperiodic)
+semi = SemidiscretizationHyperbolic(
+    mesh,
+    equations,
+    initial_condition,
+    solver,
+    boundary_conditions = boundary_conditions,
+    source_terms = source_terms_poisson_nonperiodic,
+)
 
-@unpack mesh, equations, initial_condition, boundary_conditions, source_terms, solver, cache = semi
+@unpack mesh,
+equations,
+initial_condition,
+boundary_conditions,
+source_terms,
+solver,
+cache = semi
 
 t = 0.0
 tspan = (0.0, 5.0)

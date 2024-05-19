@@ -15,27 +15,29 @@ function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float32,1})
     threads = min(length(array), config.threads)
     blocks = cld(length(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # CUDA kernel configurator for 2D array computing
 function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float32,2})
     config = launch_configuration(kernel.fun)
 
-    threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
+    threads =
+        Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
     blocks = map(cld, size(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # CUDA kernel configurator for 3D array computing
 function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{Float32,3})
     config = launch_configuration(kernel.fun)
 
-    threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
+    threads =
+        Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
     blocks = map(cld, size(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # Helper functions
@@ -131,9 +133,15 @@ function weak_form_kernel!(du, derivative_dhat, flux_arr)
 end
 
 # Calculate volume integral
-function cuda_volume_integral!(du, u, mesh::TreeMesh{1},
-    nonconservative_terms, equations,
-    volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
+function cuda_volume_integral!(
+    du,
+    u,
+    mesh::TreeMesh{1},
+    nonconservative_terms,
+    equations,
+    volume_integral::VolumeIntegralWeakForm,
+    dg::DGSEM,
+)
 
     derivative_dhat = CuArray{Float32}(dg.basis.derivative_dhat)
     flux_arr = similar(u)
@@ -142,7 +150,12 @@ function cuda_volume_integral!(du, u, mesh::TreeMesh{1},
     flux_kernel(flux_arr, u, equations, flux; configurator_3d(flux_kernel, flux_arr)...)
 
     weak_form_kernel = @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr)
-    weak_form_kernel(du, derivative_dhat, flux_arr; configurator_3d(weak_form_kernel, du)...)
+    weak_form_kernel(
+        du,
+        derivative_dhat,
+        flux_arr;
+        configurator_3d(weak_form_kernel, du)...,
+    )
 
     return nothing
 end
@@ -154,7 +167,8 @@ function prolong_interfaces_kernel!(interfaces_u, u)
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
     if (i <= 2 && j <= size(u, 1) && k <= size(u, 3))
-        @inbounds interfaces_u[i, j, k] = u[j, (2-i)*size(u, 2)+(i-1)*1, (2-i)*k+(i-1)*(k%size(u, 3)+1)]
+        @inbounds interfaces_u[i, j, k] =
+            u[j, (2-i)*size(u, 2)+(i-1)*1, (2-i)*k+(i-1)*(k%size(u, 3)+1)]
     end
 
     return nothing
@@ -165,8 +179,13 @@ function cuda_prolong2interfaces!(u, mesh::TreeMesh{1}, cache)
 
     interfaces_u = CuArray{Float32}(cache.interfaces.u)
 
-    prolong_interfaces_kernel = @cuda launch = false prolong_interfaces_kernel!(interfaces_u, u)
-    prolong_interfaces_kernel(interfaces_u, u; configurator_3d(prolong_interfaces_kernel, interfaces_u)...)
+    prolong_interfaces_kernel =
+        @cuda launch = false prolong_interfaces_kernel!(interfaces_u, u)
+    prolong_interfaces_kernel(
+        interfaces_u,
+        u;
+        configurator_3d(prolong_interfaces_kernel, interfaces_u)...,
+    )
 
     cache.interfaces.u = interfaces_u  # Automatically copy back to CPU
 
@@ -174,7 +193,12 @@ function cuda_prolong2interfaces!(u, mesh::TreeMesh{1}, cache)
 end
 
 # CUDA kernel for calculating surface fluxes 
-function surface_flux_kernel!(surface_flux_arr, interfaces_u, equations::AbstractEquations{1}, surface_flux::FluxLaxFriedrichs) # ::Any?
+function surface_flux_kernel!(
+    surface_flux_arr,
+    interfaces_u,
+    equations::AbstractEquations{1},
+    surface_flux::FluxLaxFriedrichs,
+) # ::Any?
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
@@ -188,7 +212,12 @@ function surface_flux_kernel!(surface_flux_arr, interfaces_u, equations::Abstrac
 end
 
 # new
-function surface_flux_kernel_new!(surface_flux_arr, interfaces_u, equations::AbstractEquations{1}, surface_flux::FluxLaxFriedrichs) # ::Any?
+function surface_flux_kernel_new!(
+    surface_flux_arr,
+    interfaces_u,
+    equations::AbstractEquations{1},
+    surface_flux::FluxLaxFriedrichs,
+) # ::Any?
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
@@ -207,27 +236,55 @@ function interface_flux_kernel!(surface_flux_values, surface_flux_arr)
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
     if (i <= size(surface_flux_values, 1) && j <= 2 && k <= size(surface_flux_values, 3))
-        @inbounds surface_flux_values[i, j, k] = surface_flux_arr[1, i,
-            (j-1)*k+(2-j)*((k-1)%size(surface_flux_values, 3)+iszero(k - 1)*size(surface_flux_values, 3))]
+        @inbounds surface_flux_values[i, j, k] = surface_flux_arr[
+            1,
+            i,
+            (j-1)*k+(2-j)*((k-1)%size(
+                surface_flux_values,
+                3,
+            )+iszero(k - 1)*size(surface_flux_values, 3)),
+        ]
     end
 
     return nothing
 end
 
 # Calculate interface fluxes
-function cuda_interface_flux!(mesh::TreeMesh{1}, nonconservative_terms::False,
-    equations, dg::DGSEM, cache)
+function cuda_interface_flux!(
+    mesh::TreeMesh{1},
+    nonconservative_terms::False,
+    equations,
+    dg::DGSEM,
+    cache,
+)
 
     surface_flux = dg.surface_integral.surface_flux
     interfaces_u = CuArray{Float32}(cache.interfaces.u)
     surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
-    surface_flux_arr = CuArray{Float32}(undef, (1, size(interfaces_u, 2), size(interfaces_u, 3)))
+    surface_flux_arr =
+        CuArray{Float32}(undef, (1, size(interfaces_u, 2), size(interfaces_u, 3)))
 
-    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(surface_flux_arr, interfaces_u, equations, surface_flux)
-    surface_flux_kernel(surface_flux_arr, interfaces_u, equations, surface_flux; configurator_3d(surface_flux_kernel, surface_flux_arr)...)
+    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(
+        surface_flux_arr,
+        interfaces_u,
+        equations,
+        surface_flux,
+    )
+    surface_flux_kernel(
+        surface_flux_arr,
+        interfaces_u,
+        equations,
+        surface_flux;
+        configurator_3d(surface_flux_kernel, surface_flux_arr)...,
+    )
 
-    interface_flux_kernel = @cuda launch = false interface_flux_kernel!(surface_flux_values, surface_flux_arr)
-    interface_flux_kernel(surface_flux_values, surface_flux_arr; configurator_3d(interface_flux_kernel, surface_flux_values)...)
+    interface_flux_kernel =
+        @cuda launch = false interface_flux_kernel!(surface_flux_values, surface_flux_arr)
+    interface_flux_kernel(
+        surface_flux_values,
+        surface_flux_arr;
+        configurator_3d(interface_flux_kernel, surface_flux_values)...,
+    )
 
     cache.elements.surface_flux_values = surface_flux_values # Automatically copy back to CPU
 
@@ -244,9 +301,11 @@ function surface_integral_kernel!(du, factor_arr, surface_flux_values)
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
     if (i <= size(du, 1) && (j == 1 || j == size(du, 2)) && k <= size(du, 3))
-        @inbounds du[i, j, k] = du[i, j, k] + (-1)^isone(j) *
-                                              factor_arr[isone(j)*1+(1-isone(j))*2] *
-                                              surface_flux_values[i, isone(j)*1+(1-isone(j))*2, k]
+        @inbounds du[i, j, k] =
+            du[i, j, k] +
+            (-1)^isone(j) *
+            factor_arr[isone(j)*1+(1-isone(j))*2] *
+            surface_flux_values[i, isone(j)*1+(1-isone(j))*2, k]
     end
 
     return nothing
@@ -255,11 +314,20 @@ end
 # Calculate surface integrals
 function cuda_surface_integral!(du, mesh::TreeMesh{1}, dg::DGSEM, cache)
 
-    factor_arr = CuArray{Float32}([dg.basis.boundary_interpolation[1, 1], dg.basis.boundary_interpolation[end, 2]])
+    factor_arr = CuArray{Float32}([
+        dg.basis.boundary_interpolation[1, 1],
+        dg.basis.boundary_interpolation[end, 2],
+    ])
     surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
 
-    surface_integral_kernel = @cuda launch = false surface_integral_kernel!(du, factor_arr, surface_flux_values)
-    surface_integral_kernel(du, factor_arr, surface_flux_values; configurator_3d(surface_integral_kernel, du)...)
+    surface_integral_kernel =
+        @cuda launch = false surface_integral_kernel!(du, factor_arr, surface_flux_values)
+    surface_integral_kernel(
+        du,
+        factor_arr,
+        surface_flux_values;
+        configurator_3d(surface_integral_kernel, du)...,
+    )
 
     return nothing
 end
@@ -289,7 +357,14 @@ function cuda_jacobian!(du, mesh::TreeMesh{1}, cache)
 end
 
 # CUDA kernel for calculating source terms
-function source_terms_kernel!(du, u, node_coordinates, t, equations::AbstractEquations{1}, source_terms::Function)
+function source_terms_kernel!(
+    du,
+    u,
+    node_coordinates,
+    t,
+    equations::AbstractEquations{1},
+    source_terms::Function,
+)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
@@ -304,20 +379,40 @@ function source_terms_kernel!(du, u, node_coordinates, t, equations::AbstractEqu
 end
 
 # Calculate source terms               
-function cuda_sources!(du, u, t, source_terms::Nothing,
-    equations::AbstractEquations{1}, cache)
+function cuda_sources!(
+    du,
+    u,
+    t,
+    source_terms::Nothing,
+    equations::AbstractEquations{1},
+    cache,
+)
 
     return nothing
 end
 
 # Calculate source terms 
-function cuda_sources!(du, u, t, source_terms,
-    equations::AbstractEquations{1}, cache)
+function cuda_sources!(du, u, t, source_terms, equations::AbstractEquations{1}, cache)
 
     node_coordinates = CuArray{Float32}(cache.elements.node_coordinates)
 
-    source_terms_kernel = @cuda launch = false source_terms_kernel!(du, u, node_coordinates, t, equations, source_terms)
-    source_terms_kernel(du, u, node_coordinates, t, equations, source_terms; configurator_3d(source_terms_kernel, du)...)
+    source_terms_kernel = @cuda launch = false source_terms_kernel!(
+        du,
+        u,
+        node_coordinates,
+        t,
+        equations,
+        source_terms,
+    )
+    source_terms_kernel(
+        du,
+        u,
+        node_coordinates,
+        t,
+        equations,
+        source_terms;
+        configurator_3d(source_terms_kernel, du)...,
+    )
 
     return nothing
 end
@@ -357,23 +452,52 @@ end
 size_arr = CuArray{Float32}(undef, (size(flux_arr, 2), size(flux_arr, 3)))
 @benchmark begin
     flux_kernel_new = @cuda launch = false flux_kernel_new!(flux_arr, u, equations, flux)
-    flux_kernel_new(flux_arr, u, equations, flux; configurator_2d(flux_kernel_new, size_arr)...)
+    flux_kernel_new(
+        flux_arr,
+        u,
+        equations,
+        flux;
+        configurator_2d(flux_kernel_new, size_arr)...,
+    )
 end
 
 surface_flux = solver.surface_integral.surface_flux
 interfaces_u = CuArray{Float32}(cache.interfaces.u)
 surface_flux_values = CuArray{Float32}(cache.elements.surface_flux_values)
-surface_flux_arr = CuArray{Float32}(undef, (1, size(interfaces_u, 2), size(interfaces_u, 3)))
+surface_flux_arr =
+    CuArray{Float32}(undef, (1, size(interfaces_u, 2), size(interfaces_u, 3)))
 
 @benchmark begin
-    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(surface_flux_arr, interfaces_u, equations, surface_flux)
-    surface_flux_kernel(surface_flux_arr, interfaces_u, equations, surface_flux; configurator_3d(surface_flux_kernel, surface_flux_arr)...)
+    surface_flux_kernel = @cuda launch = false surface_flux_kernel!(
+        surface_flux_arr,
+        interfaces_u,
+        equations,
+        surface_flux,
+    )
+    surface_flux_kernel(
+        surface_flux_arr,
+        interfaces_u,
+        equations,
+        surface_flux;
+        configurator_3d(surface_flux_kernel, surface_flux_arr)...,
+    )
 end
 
 size_arr = CuArray{Float32}(undef, (size(interfaces_u, 2), size(interfaces_u, 3)))
 @benchmark begin
-    surface_flux_kernel_new = @cuda launch = false surface_flux_kernel_new!(surface_flux_arr, interfaces_u, equations, surface_flux)
-    surface_flux_kernel_new(surface_flux_arr, interfaces_u, equations, surface_flux; configurator_2d(surface_flux_kernel_new, size_arr)...)
+    surface_flux_kernel_new = @cuda launch = false surface_flux_kernel_new!(
+        surface_flux_arr,
+        interfaces_u,
+        equations,
+        surface_flux,
+    )
+    surface_flux_kernel_new(
+        surface_flux_arr,
+        interfaces_u,
+        equations,
+        surface_flux;
+        configurator_2d(surface_flux_kernel_new, size_arr)...,
+    )
 end
 
 # For tests

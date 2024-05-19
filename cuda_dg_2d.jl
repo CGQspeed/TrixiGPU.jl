@@ -14,27 +14,29 @@ function configurator_1d(kernel::CUDA.HostKernel, array::CuArray{Float32,1})
     threads = min(length(array), config.threads)
     blocks = cld(length(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # CUDA kernel configurator for 2D array computing
 function configurator_2d(kernel::CUDA.HostKernel, array::CuArray{Float32,2})
     config = launch_configuration(kernel.fun)
 
-    threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
+    threads =
+        Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 2))), 2))
     blocks = map(cld, size(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # CUDA kernel configurator for 3D array computing
 function configurator_3d(kernel::CUDA.HostKernel, array::CuArray{Float32,3})
     config = launch_configuration(kernel.fun)
 
-    threads = Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
+    threads =
+        Tuple(fill(Int(floor((min(maximum(size(array)), config.threads))^(1 / 3))), 3))
     blocks = map(cld, size(array), threads)
 
-    return (threads=threads, blocks=blocks)
+    return (threads = threads, blocks = blocks)
 end
 
 # Helper functions
@@ -66,7 +68,13 @@ function copy_to_cpu!(du, u)
 end
 
 # CUDA kernel for calculating fluxes along normal direction 1 and 2
-function flux_kernel!(flux_arr1, flux_arr2, u, equations::AbstractEquations{2}, flux::Function)
+function flux_kernel!(
+    flux_arr1,
+    flux_arr2,
+    u,
+    equations::AbstractEquations{2},
+    flux::Function,
+)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     k = (blockIdx().z - 1) * blockDim().z + threadIdx().z
@@ -108,20 +116,40 @@ function weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
 end
 
 # Calculate volume integral
-function cuda_volume_integral!(du, u, mesh::TreeMesh{2},
-    nonconservative_terms, equations,
-    volume_integral::VolumeIntegralWeakForm, dg::DGSEM)
+function cuda_volume_integral!(
+    du,
+    u,
+    mesh::TreeMesh{2},
+    nonconservative_terms,
+    equations,
+    volume_integral::VolumeIntegralWeakForm,
+    dg::DGSEM,
+)
 
     derivative_dhat = CuArray{Float32}(dg.basis.derivative_dhat)
     flux_arr1 = similar(u)
     flux_arr2 = similar(u)
     size_arr = CuArray{Float32}(undef, size(u, 1), size(u, 2)^2, size(u, 4))
 
-    flux_kernel = @cuda launch = false flux_kernel!(flux_arr1, flux_arr2, u, equations, flux)
-    flux_kernel(flux_arr1, flux_arr2, u, equations; configurator_3d(flux_kernel, size_arr)...)
+    flux_kernel =
+        @cuda launch = false flux_kernel!(flux_arr1, flux_arr2, u, equations, flux)
+    flux_kernel(
+        flux_arr1,
+        flux_arr2,
+        u,
+        equations;
+        configurator_3d(flux_kernel, size_arr)...,
+    )
 
-    weak_form_kernel = @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
-    weak_form_kernel(du, derivative_dhat, flux_arr1, flux_arr2; configurator_3d(weak_form_kernel, size_arr)...)
+    weak_form_kernel =
+        @cuda launch = false weak_form_kernel!(du, derivative_dhat, flux_arr1, flux_arr2)
+    weak_form_kernel(
+        du,
+        derivative_dhat,
+        flux_arr1,
+        flux_arr2;
+        configurator_3d(weak_form_kernel, size_arr)...,
+    )
 
     return nothing
 end
@@ -132,9 +160,14 @@ end
 du, u = copy_to_gpu!(du, u)
 
 cuda_volume_integral!(
-    du, u, mesh,
-    have_nonconservative_terms(equations), equations,
-    solver.volume_integral, solver)
+    du,
+    u,
+    mesh,
+    have_nonconservative_terms(equations),
+    equations,
+    solver.volume_integral,
+    solver,
+)
 
 
 

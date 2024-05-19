@@ -20,8 +20,13 @@ trixi_include(@__MODULE__, joinpath(@__DIR__, elixir_file))
 restart_filename = joinpath("out", restart_file)
 mesh = load_mesh(restart_filename)
 
-semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition, solver,
-                                    boundary_conditions=boundary_conditions)
+semi = SemidiscretizationHyperbolic(
+    mesh,
+    equations,
+    initial_condition,
+    solver,
+    boundary_conditions = boundary_conditions,
+)
 
 tspan = (load_time(restart_filename), 2.0)
 ode = semidiscretize(semi, tspan, restart_filename);
@@ -30,7 +35,11 @@ ode = semidiscretize(semi, tspan, restart_filename);
 ###############################################################################
 # run the simulation
 
-sol = solve(ode, CarpenterKennedy2N54(williamson_condition=false),
-            dt=1.0, # solve needs some value here but it will be overwritten by the stepsize_callback
-            save_everystep=false, callback=callbacks);
+sol = solve(
+    ode,
+    CarpenterKennedy2N54(williamson_condition = false),
+    dt = 1.0, # solve needs some value here but it will be overwritten by the stepsize_callback
+    save_everystep = false,
+    callback = callbacks,
+);
 summary_callback() # print the timer summary

@@ -4,8 +4,8 @@
 # See https://ranocha.de/blog/Optimizing_EC_Trixi for further details.
 @muladd begin
 
-include("types.jl")
-include("utilities.jl")
-include("recipes_plots.jl")
+    include("types.jl")
+    include("utilities.jl")
+    include("recipes_plots.jl")
 
 end # @muladd
